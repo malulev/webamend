@@ -34,7 +34,7 @@ Client A's app container talks to a daemon running as user `A`. Three separate m
 do the work, all kernel-enforced:
 
 1. **Authority.** Compromising A's socket yields user `A`, not root. The `Binds: ["/:/host"]`
-   mount still succeeds, and every read of `/srv/prosel/B` is refused because that directory is
+   mount still succeeds, and every read of `/srv/webamend/B` is refused because that directory is
    mode 0700 owned by `B`.
 2. **User namespaces.** `/etc/subuid` maps container UID 0 to A's host UID and container UIDs
    1..65536 into A's subordinate range. A container escape lands as an unprivileged host user.
@@ -144,7 +144,7 @@ comes — 1–3s starts, per-second billing — not Fargate.
 
 | Script | Purpose |
 |---|---|
-| `ops/bootstrap-host.sh` | Once per VPS: Docker, rootless prerequisites, `/srv/prosel`, the local registry. |
+| `ops/bootstrap-host.sh` | Once per VPS: Docker, rootless prerequisites, `/srv/webamend`, the local registry. |
 | `ops/provision-client.sh <slug> <hostname> <port>` | One client: user, linger, rootless daemon, 0700 tree, `.env` skeleton. Never invents secrets, never starts the stack. |
 | `ops/release.sh [ref]` | Build both images once, push, roll each client forward one at a time. One client's failure does not abort the rest. |
 | `ops/status.sh` | Per client: daemon, container, HTTP, running agents, deployed tag. |

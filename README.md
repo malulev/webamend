@@ -1,10 +1,10 @@
-# Lexi
+# Webamend
 
 *Say what you want changed. See it before it goes live.*
 
-![Lexi demo: describe a change, preview it, then publish to the live site](docs/lexi-demo-edit-deploy.gif)
+![Webamend demo: describe a change, preview it, then publish to the live site](docs/webamend-demo-edit-deploy.gif)
 
-![Lexi architecture: browser, app, isolated agent container, GitHub, Netlify](docs/architecture.svg)
+![Webamend architecture: browser, app, isolated agent container, GitHub, Netlify](docs/architecture.svg)
 
 In a hurry? [Quickstart](docs/QUICKSTART.md) has only the commands, and the
 [new client checklist](docs/NEW-CLIENT.md) is the to-do list for onboarding a site.
@@ -40,7 +40,7 @@ ref, and the disk holds only a cache that rebuilds itself from a fresh clone.
 
 ## Who it's for
 
-Lexi is installed by someone technical and used by someone who isn't. You keep the repository, the
+Webamend is installed by someone technical and used by someone who isn't. You keep the repository, the
 policy and the deploy pipeline; the client gets a chat box and a publish button.
 
 - **Freelance developers and agencies** handing off a site to a client who keeps asking for copy
@@ -337,7 +337,7 @@ versioned edit with an author, not an unattributed mutation in a web form.
 ## Host it on a VPS
 
 One box serves many clients, but **not by sharing anything**. Each client gets its own Linux user
-running its own rootless Docker daemon, its own `/srv/lexi/<slug>` at mode 0700, and its own
+running its own rootless Docker daemon, its own `/srv/webamend/<slug>` at mode 0700, and its own
 Compose project. That per-user daemon is the whole boundary: the socket the app mounts is root on
 whoever owns it, so a compromise reaches one unprivileged client user rather than the host. (A
 socket proxy is not an alternative — it filters paths, not request bodies, and the runner needs
@@ -354,8 +354,8 @@ client, plus ~1.2 GB of images per client — each rootless daemon keeps its own
 
 ```bash
 apt-get update && apt-get install -y git curl caddy
-git clone <this repository> /opt/lexi/src && cd /opt/lexi/src
-ops/bootstrap-host.sh            # Docker, rootless prerequisites, /srv/lexi, local registry
+git clone <this repository> /opt/webamend/src && cd /opt/webamend/src
+ops/bootstrap-host.sh            # Docker, rootless prerequisites, /srv/webamend, local registry
 ufw allow 22,80,443/tcp && ufw --force enable
 ```
 
@@ -363,7 +363,7 @@ ufw allow 22,80,443/tcp && ufw --force enable
 
 ```bash
 ops/provision-client.sh acme edit.acme.example 3001   # user, rootless daemon, 0700 tree, .env skeleton
-sudoedit /srv/lexi/acme/.env                          # GitHub App, Netlify, OpenRouter, SMTP, ALLOWED_EMAILS
+sudoedit /srv/webamend/acme/.env                          # GitHub App, Netlify, OpenRouter, SMTP, ALLOWED_EMAILS
 ```
 
 `provision-client.sh` prints the remaining steps verbatim, including how to run `gen:secrets` and
@@ -388,7 +388,7 @@ ops/status.sh                    # daemon, container, HTTP, running agents, depl
 ### Releasing new code
 
 ```bash
-cd /opt/lexi/src && git pull && ops/release.sh
+cd /opt/webamend/src && git pull && ops/release.sh
 ```
 
 Both images are built **once** on the host's root daemon, tagged with the git short SHA, and
@@ -401,17 +401,17 @@ broken as stale.
 
 ### Four things not to get wrong
 
-- **`/srv/lexi/<slug>` and its `state/` stay 0700.** They are the containment. Each per-request
+- **`/srv/webamend/<slug>` and its `state/` stay 0700.** They are the containment. Each per-request
   working tree is made writable by the agent container's foreign uid, which is safe precisely
   because nothing outside that installation can traverse the directory holding it.
 - **Each client runs one agent at a time; the host runs up to one per client.** The site lock
   bounds an installation, and nothing bounds the host across installations yet, so the client
-  count is the host's agent ceiling. `ops/status.sh` reports it as `lexi_clients_total`.
+  count is the host's agent ceiling. `ops/status.sh` reports it as `webamend_clients_total`.
 - **Set `PORT_HOST`, never `PORT`.** `.env` is both interpolated by Compose and passed into the
   container, where Next reads `PORT` as its listen port. Give each client a distinct `PORT_HOST`,
   bound to loopback, behind the reverse proxy.
 - **Never run `docker compose build` in a client directory.** A client directory holds a compose
-  file, a `.env` and state — no source. Releases build in `/opt/lexi/src` via `ops/release.sh`.
+  file, a `.env` and state — no source. Releases build in `/opt/webamend/src` via `ops/release.sh`.
 
 ### What to back up
 

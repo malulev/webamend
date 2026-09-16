@@ -70,7 +70,7 @@ export function createRateLimiter(options: RateLimitOptions): RateLimiter {
 /**
  * The caller's address, as far as a request behind the reverse proxy can say.
  *
- * Lexi runs behind a root-owned proxy (Caddy) that terminates TLS and
+ * Webamend runs behind a root-owned proxy (Caddy) that terminates TLS and
  * forwards over loopback, so the socket's own address is always `127.0.0.1`.
  * The client address is the first hop of `X-Forwarded-For`, or `X-Real-IP`.
  * A caller can forge these, so the per-address limit below carries the weight;

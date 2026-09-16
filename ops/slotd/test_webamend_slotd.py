@@ -1,12 +1,12 @@
 """
-Tests for lexi-slotd. Standard library only, no root, no Docker.
+Tests for webamend-slotd. Standard library only, no root, no Docker.
 Run: python3 -m unittest discover -s ops/slotd -p 'test_*.py' -v
 """
 from __future__ import annotations
 
 import unittest
 
-import lexi_slotd as slotd
+import webamend_slotd as slotd
 
 
 class SizesAndConfig(unittest.TestCase):
@@ -31,8 +31,8 @@ class SizesAndConfig(unittest.TestCase):
         self.assertEqual(config.cpu_oversubscribe, 2.0)
         self.assertEqual(config.brake_margin, slotd.parse_size("200M"))
         self.assertEqual(config.identity, "peer")
-        self.assertEqual(config.group, "lexi-slots")
-        self.assertEqual(config.socket_path, "/run/lexi/slotd.sock")
+        self.assertEqual(config.group, "webamend-slots")
+        self.assertEqual(config.socket_path, "/run/webamend/slotd.sock")
         self.assertIsNone(config.clients_override)
         self.assertIsNone(config.capacity_override)
 
@@ -613,21 +613,21 @@ class PromRendering(unittest.TestCase):
             "waitSecondsP50": 12.4, "heldSecondsP50": 40.0,
             "refused": {"already_holding": 1}, "memoryBytes": 5, "memAvailable": 9, "holders": {},
         })
-        self.assertIn("lexi_slots_capacity 4\n", text)
-        self.assertIn("lexi_slots_leased 2\n", text)
-        self.assertIn("lexi_slots_queued 6\n", text)
-        self.assertIn("lexi_slots_braked 1\n", text)
-        self.assertIn("lexi_slots_wait_seconds_p50 12.4\n", text)
-        self.assertIn('lexi_slots_refused_total{reason="already_holding"} 1\n', text)
-        self.assertIn('lexi_slots_refused_total{reason="projected_wait_exceeds_ceiling"} 0\n', text)
-        self.assertIn('lexi_slots_refused_total{reason="unknown_client"} 0\n', text)
-        self.assertIn("# TYPE lexi_slots_capacity gauge\n", text)
+        self.assertIn("webamend_slots_capacity 4\n", text)
+        self.assertIn("webamend_slots_leased 2\n", text)
+        self.assertIn("webamend_slots_queued 6\n", text)
+        self.assertIn("webamend_slots_braked 1\n", text)
+        self.assertIn("webamend_slots_wait_seconds_p50 12.4\n", text)
+        self.assertIn('webamend_slots_refused_total{reason="already_holding"} 1\n', text)
+        self.assertIn('webamend_slots_refused_total{reason="projected_wait_exceeds_ceiling"} 0\n', text)
+        self.assertIn('webamend_slots_refused_total{reason="unknown_client"} 0\n', text)
+        self.assertIn("# TYPE webamend_slots_capacity gauge\n", text)
 
     def test_omits_the_wait_percentile_before_there_is_one(self):
         text = slotd.render_prom({"capacity": 1, "leased": 0, "queued": 0, "braked": False,
                                   "waitSecondsP50": None, "heldSecondsP50": None, "refused": {},
                                   "memoryBytes": 5, "memAvailable": 9, "holders": {}})
-        self.assertNotIn("lexi_slots_wait_seconds_p50", text)
+        self.assertNotIn("webamend_slots_wait_seconds_p50", text)
 
 
 # ---------------------------------------------------------------------------

@@ -24,8 +24,8 @@ usage() {
   cat <<'USAGE'
 Usage: ops/release.sh [git-ref] [--client <slug>] [--registry-port <port>] [--timeout <seconds>]
 
-Builds lexi/app and webagent/agent at the given git ref (default HEAD),
-pushes both to the host registry, and rolls each client in /srv/lexi/*
+Builds webamend/app and webagent/agent at the given git ref (default HEAD),
+pushes both to the host registry, and rolls each client in /srv/webamend/*
 forward one at a time. Run as root.
 
 Arguments:
@@ -47,7 +47,7 @@ Examples:
 USAGE
 }
 
-CLIENT_ROOT=/srv/lexi
+CLIENT_ROOT=/srv/webamend
 REGISTRY_PORT=5000
 HEALTH_TIMEOUT=120
 # Leave a failed client on the new, broken image instead of restoring the one
@@ -147,7 +147,7 @@ resolve_sha() {
   SHA="$(git -C "$REPO_ROOT" rev-parse --short "$GIT_REF" 2>/dev/null || true)"
   [ -n "$SHA" ] || die "git could not resolve '${GIT_REF}' in ${REPO_ROOT}"
 
-  APP_TAG="127.0.0.1:${REGISTRY_PORT}/lexi/app:${SHA}"
+  APP_TAG="127.0.0.1:${REGISTRY_PORT}/webamend/app:${SHA}"
   AGENT_TAG="127.0.0.1:${REGISTRY_PORT}/webagent/agent:${SHA}"
 
   # Said out loud because the images are built from the working tree, not from
@@ -178,7 +178,7 @@ ensure_build_env_file() {
   install -m 0600 /dev/null "${REPO_ROOT}/.env"
   printf '%s\n' \
     '# Empty on purpose. This checkout builds images; it does not run one.' \
-    '# Each client keeps its own .env at /srv/lexi/<slug>/.env.' \
+    '# Each client keeps its own .env at /srv/webamend/<slug>/.env.' \
     >"${REPO_ROOT}/.env"
   note "created an empty ${REPO_ROOT}/.env so 'docker compose build' can parse the file"
   return 0
@@ -201,7 +201,7 @@ build_images() {
 
   # Unqualified aliases too, so `docker images` on this host reads as the
   # repository's own names and not only as registry paths.
-  docker tag "$APP_TAG" "lexi/app:${SHA}"
+  docker tag "$APP_TAG" "webamend/app:${SHA}"
   docker tag "$AGENT_TAG" "webagent/agent:${SHA}"
 }
 
@@ -514,10 +514,10 @@ print_summary() {
 }
 
 # Held while a roll is in progress. Every app-down alert carries
-# `unless lexi_maintenance == 1`, so a deploy does not page anyone — which is
+# `unless webamend_maintenance == 1`, so a deploy does not page anyone — which is
 # how alert systems get muted, and a muted alert looks like coverage without
 # being any.
-MAINTENANCE_FLAG=/var/lib/lexi/maintenance
+MAINTENANCE_FLAG=/var/lib/webamend/maintenance
 
 begin_maintenance() {
   mkdir -p "$(dirname -- "$MAINTENANCE_FLAG")"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-lexi-slotd: host-wide admission for agent runs.
+webamend-slotd: host-wide admission for agent runs.
 
 One daemon per host. Client apps connect over a unix socket, ask for a slot,
 and hold the connection for as long as their agent runs. The connection is the
@@ -61,8 +61,8 @@ class Config:
     # names itself in the acquire message. The second exists so a developer can
     # run ten fake clients from one uid on a Mac; it is never set in production.
     identity: str = "peer"
-    group: str = "lexi-slots"
-    socket_path: str = "/run/lexi/slotd.sock"
+    group: str = "webamend-slots"
+    socket_path: str = "/run/webamend/slotd.sock"
     clients_override: Optional[int] = None
     capacity_override: Optional[int] = None
     # Test and demo only: while this file exists and holds an integer, it is
@@ -719,18 +719,18 @@ def render_prom(status: Dict[str, object]) -> str:
         lines.append(f"# TYPE {name} gauge")
         lines.append(f"{name} {value}")
 
-    gauge("lexi_slots_capacity", "Agent runs this host admits at once.", status["capacity"])
-    gauge("lexi_slots_leased", "Agent runs holding a slot now.", status["leased"])
-    gauge("lexi_slots_queued", "Requests waiting for a slot.", status["queued"])
-    gauge("lexi_slots_braked", "1 while the memory brake holds the head of the queue.", 1 if status["braked"] else 0)
+    gauge("webamend_slots_capacity", "Agent runs this host admits at once.", status["capacity"])
+    gauge("webamend_slots_leased", "Agent runs holding a slot now.", status["leased"])
+    gauge("webamend_slots_queued", "Requests waiting for a slot.", status["queued"])
+    gauge("webamend_slots_braked", "1 while the memory brake holds the head of the queue.", 1 if status["braked"] else 0)
     if status.get("waitSecondsP50") is not None:
-        gauge("lexi_slots_wait_seconds_p50", "Median wait of recent granted requests.", status["waitSecondsP50"])
-    lines.append("# HELP lexi_slots_refused_total Requests refused since the daemon started, by reason.")
-    lines.append("# TYPE lexi_slots_refused_total counter")
+        gauge("webamend_slots_wait_seconds_p50", "Median wait of recent granted requests.", status["waitSecondsP50"])
+    lines.append("# HELP webamend_slots_refused_total Requests refused since the daemon started, by reason.")
+    lines.append("# TYPE webamend_slots_refused_total counter")
     refused = status.get("refused") or {}
     assert isinstance(refused, dict)
     for reason in sorted(set(_KNOWN_REASONS) | set(refused)):
-        lines.append(f'lexi_slots_refused_total{{reason="{reason}"}} {refused.get(reason, 0)}')
+        lines.append(f'webamend_slots_refused_total{{reason="{reason}"}} {refused.get(reason, 0)}')
     return "\n".join(lines) + "\n"
 
 
@@ -746,7 +746,7 @@ def status_command(argv: List[str]) -> int:
             prom = True
             index += 1
         else:
-            sys.stderr.write("usage: lexi_slotd.py status [--socket PATH] [--prom]\n")
+            sys.stderr.write("usage: webamend_slotd.py status [--socket PATH] [--prom]\n")
             return 2
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(5)
@@ -770,8 +770,8 @@ def main(argv: List[str]) -> int:
     if argv and argv[0] == "status":
         return status_command(argv[1:])
     if argv:
-        sys.stderr.write("usage: lexi_slotd.py            # run the daemon (configuration from the environment)\n"
-                         "       lexi_slotd.py status [--socket PATH] [--prom]\n")
+        sys.stderr.write("usage: webamend_slotd.py            # run the daemon (configuration from the environment)\n"
+                         "       webamend_slotd.py status [--socket PATH] [--prom]\n")
         return 2
     config = Config.from_env()
     platform: Platform = detect_platform()

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs the monitoring side of a Lexi host: the textfile collector timers,
+# Installs the monitoring side of a Webamend host: the textfile collector timers,
 # the dead-man's-switch heartbeat, and optionally Grafana Alloy.
 #
 # Idempotent, and it refuses rather than guesses. Run as root on a host already
@@ -11,7 +11,7 @@ set -euo pipefail
 # service are things a person signs up for; this script wires up what they hand
 # back. See ops/MONITORING.md for the order.
 
-CONFIG_DIR=/etc/lexi
+CONFIG_DIR=/etc/webamend
 ENV_FILE="${CONFIG_DIR}/monitoring.env"
 TEXTFILE_DIR=/var/lib/node_exporter/textfile
 ALLOY_CONFIG_DIR=/etc/alloy
@@ -25,8 +25,8 @@ usage() {
 Usage: ops/install-monitoring.sh [--with-alloy]
 
 Installs:
-  - /etc/lexi/monitoring.env       (0600 root, from ops/monitoring/alloy/env.example)
-  - the lexi-probe timers          (metrics every 60s, disk usage every 15min)
+  - /etc/webamend/monitoring.env       (0600 root, from ops/monitoring/alloy/env.example)
+  - the webamend-probe timers          (metrics every 60s, disk usage every 15min)
   - journald retention caps
   - Docker json-file log rotation for the host daemon
 
@@ -69,20 +69,20 @@ install -d -m 755 "$TEXTFILE_DIR"
 
 # --- timers ----------------------------------------------------------------
 # The units ship with a placeholder path because a host may keep the checkout
-# anywhere — this one has it at /opt/prosel/src, a name older than the product.
-for unit in lexi-probe.service lexi-probe.timer lexi-probe-full.service lexi-probe-full.timer; do
-  sed "s#/opt/lexi/src#${REPO_ROOT}#g" "${SCRIPT_DIR}/monitoring/systemd/${unit}" \
+# anywhere — this one has it at /opt/webamend/src, a name older than the product.
+for unit in webamend-probe.service webamend-probe.timer webamend-probe-full.service webamend-probe-full.timer; do
+  sed "s#/opt/webamend/src#${REPO_ROOT}#g" "${SCRIPT_DIR}/monitoring/systemd/${unit}" \
     >"/etc/systemd/system/${unit}"
 done
 systemctl daemon-reload
-systemctl enable --now lexi-probe.timer lexi-probe-full.timer
+systemctl enable --now webamend-probe.timer webamend-probe-full.timer
 note "timers enabled; first collection within two minutes"
 
 # --- bound what grows without limit ----------------------------------------
 install -d -m 755 /etc/systemd/journald.conf.d
-cat >/etc/systemd/journald.conf.d/lexi.conf <<'JOURNAL'
+cat >/etc/systemd/journald.conf.d/webamend.conf <<'JOURNAL'
 # The default ceiling is 10% of the filesystem, which on this box is several
-# gigabytes shared with /srv/lexi and every client's image store.
+# gigabytes shared with /srv/webamend and every client's image store.
 [Journal]
 SystemMaxUse=500M
 RuntimeMaxUse=100M
@@ -112,7 +112,7 @@ if [ "$WITH_ALLOY" -eq 1 ]; then
   install -m 644 "${SCRIPT_DIR}/monitoring/alloy/config.alloy" "${ALLOY_CONFIG_DIR}/config.alloy"
 
   install -d -m 755 /etc/systemd/system/alloy.service.d
-  cat >/etc/systemd/system/alloy.service.d/lexi.conf <<'OVERRIDE'
+  cat >/etc/systemd/system/alloy.service.d/webamend.conf <<'OVERRIDE'
 # Bounded rather than hoped for. The summed agent ceiling across clients can
 # exceed free memory, so the monitoring must not be the thing that tips it:
 # MemoryMax makes Alloy the process the kernel kills, instead of Caddy or a
@@ -130,7 +130,7 @@ if [ "$WITH_ALLOY" -eq 1 ]; then
 [Service]
 User=root
 Group=root
-EnvironmentFile=-/etc/lexi/monitoring.env
+EnvironmentFile=-/etc/webamend/monitoring.env
 Environment=GOMEMLIMIT=120MiB
 MemoryHigh=150M
 MemoryMax=200M
@@ -142,7 +142,7 @@ OVERRIDE
   systemctl enable --now alloy
   note "alloy installed and started"
   note "check it: systemctl status alloy; journalctl -u alloy -n 30"
-  note "then CONFIRM LOGS ARRIVE: in Grafana, {job=\"lexi\"} must return lines."
+  note "then CONFIRM LOGS ARRIVE: in Grafana, {job=\"webamend\"} must return lines."
   note "  metrics flowing while logs stay empty means Alloy cannot read the"
   note "  client container logs — check it is running as root."
 

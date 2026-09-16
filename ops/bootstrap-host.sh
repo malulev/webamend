@@ -11,7 +11,7 @@ set -euo pipefail
 #     installed HERE because they are host-wide apt state: installing them
 #     twenty times, once per client, would be twenty identical no-ops with
 #     twenty chances to fail halfway.
-#   - /srv/lexi, the parent of every client's directory. Mode 0755 and
+#   - /srv/webamend, the parent of every client's directory. Mode 0755 and
 #     root-owned on purpose: each client subdirectory underneath is 0700 and
 #     owned by that client, so the parent only needs to be traversable.
 #   - A registry on 127.0.0.1:5000. Twenty clients must not each run
@@ -27,7 +27,7 @@ usage() {
   cat <<'USAGE'
 Usage: ops/bootstrap-host.sh [--registry-port <port>]
 
-Prepares a fresh VPS to host Lexi client installations. Run as root, once.
+Prepares a fresh VPS to host Webamend client installations. Run as root, once.
 Idempotent: re-running repairs a partial run and changes nothing else.
 
 Options:
@@ -48,9 +48,9 @@ REGISTRY_PORT=5000
 SWAP_SIZE=2G
 WITH_SWAP=1
 WITH_MONITORING=1
-REGISTRY_NAME=lexi-registry
-REGISTRY_VOLUME=lexi-registry-data
-CLIENT_ROOT=/srv/lexi
+REGISTRY_NAME=webamend-registry
+REGISTRY_VOLUME=webamend-registry-data
+CLIENT_ROOT=/srv/webamend
 
 # Compose v2.17 is the floor because docker-compose.yml builds the app image
 # from `dockerfile_inline`, which does not exist before it. An older Compose
@@ -146,7 +146,7 @@ install_rootless_prerequisites() {
 }
 
 # Compared numerically rather than with a string test, because "2.9" sorts
-# after "2.17" lexically and would pass a check that should fail.
+# after "2.17" webamendcally and would pass a check that should fail.
 verify_compose_version() {
   local raw major minor
   raw="$(docker compose version --short 2>/dev/null || true)"
@@ -274,22 +274,22 @@ install_monitoring() {
 }
 
 # The host admission queue: one daemon, socket-activated, unprivileged. The
-# `lexi-slots` group is both its authorization list and its client count;
+# `webamend-slots` group is both its authorization list and its client count;
 # provision-client.sh enrols each client. Python 3 is present on every
 # supported host image; the daemon is standard library only.
 install_slotd() {
-  command -v python3 >/dev/null || die "python3 is required for lexi-slotd; apt-get install -y python3"
-  getent group lexi-slots >/dev/null || groupadd --system lexi-slots
-  install -d -m 755 /run/lexi /etc/lexi
-  [ -f /etc/lexi/slots.env ] || install -m 644 "${SCRIPT_DIR}/slotd/slots.env.example" /etc/lexi/slots.env
+  command -v python3 >/dev/null || die "python3 is required for webamend-slotd; apt-get install -y python3"
+  getent group webamend-slots >/dev/null || groupadd --system webamend-slots
+  install -d -m 755 /run/webamend /etc/webamend
+  [ -f /etc/webamend/slots.env ] || install -m 644 "${SCRIPT_DIR}/slotd/slots.env.example" /etc/webamend/slots.env
   local unit
-  for unit in lexi-slotd.socket lexi-slotd.service; do
-    sed "s#/opt/lexi/src#${SCRIPT_DIR%/ops}#g" "${SCRIPT_DIR}/slotd/systemd/${unit}" \
+  for unit in webamend-slotd.socket webamend-slotd.service; do
+    sed "s#/opt/webamend/src#${SCRIPT_DIR%/ops}#g" "${SCRIPT_DIR}/slotd/systemd/${unit}" \
       >"/etc/systemd/system/${unit}"
   done
   systemctl daemon-reload
-  systemctl enable --now lexi-slotd.socket
-  note "lexi-slotd listening on /run/lexi/slotd.sock; capacity: python3 ${SCRIPT_DIR}/slotd/lexi_slotd.py status"
+  systemctl enable --now webamend-slotd.socket
+  note "webamend-slotd listening on /run/webamend/slotd.sock; capacity: python3 ${SCRIPT_DIR}/slotd/webamend_slotd.py status"
 }
 
 main() {
@@ -313,7 +313,7 @@ Next:
   ops/provision-client.sh <slug> <hostname> <port>
 
 Monitoring is installed but inert until it has somewhere to report:
-  \$EDITOR /etc/lexi/monitoring.env    # HEARTBEAT_URL at minimum
+  \$EDITOR /etc/webamend/monitoring.env    # HEARTBEAT_URL at minimum
 See ops/MONITORING.md.
 
 Note the registry port if you changed it (${REGISTRY_PORT}); release.sh and

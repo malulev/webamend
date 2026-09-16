@@ -74,9 +74,9 @@ describe('isUsableTotpSecret', () => {
 
 describe('otpauthUri', () => {
   it('names the issuer and account and carries the secret', () => {
-    const uri = otpauthUri(buildEnv(), 'Lexi', 'edit.client.example');
-    expect(uri.startsWith('otpauth://totp/Lexi%3Aedit.client.example?')).toBe(true);
+    const uri = otpauthUri(buildEnv(), 'Webamend', 'edit.client.example');
+    expect(uri.startsWith('otpauth://totp/Webamend%3Aedit.client.example?')).toBe(true);
     expect(uri).toContain(`secret=${SECRET}`);
-    expect(uri).toContain('issuer=Lexi');
+    expect(uri).toContain('issuer=Webamend');
   });
 });

@@ -1,5 +1,5 @@
 [Unit]
-Description=Collect Lexi metrics every minute
+Description=Collect Webamend metrics every minute
 
 [Timer]
 OnBootSec=2min
@@ -7,7 +7,7 @@ OnUnitActiveSec=60s
 # Without this every host provisioned from the same image collects on the same
 # second.
 RandomizedDelaySec=10s
-Unit=lexi-probe.service
+Unit=webamend-probe.service
 
 [Install]
 WantedBy=timers.target

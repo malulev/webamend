@@ -39,7 +39,7 @@ Create the DNS record before or while it runs. If it stops, fix what it names an
 resumes. The manual steps, for reference or for doing one by hand:
 
 - [ ] `ops/provision-client.sh acme edit.acme.example 3001`
-- [ ] `sudoedit /srv/lexi/acme/.env`: GitHub App, Netlify, OpenRouter, SMTP, `ALLOWED_EMAILS`,
+- [ ] `sudoedit /srv/webamend/acme/.env`: GitHub App, Netlify, OpenRouter, SMTP, `ALLOWED_EMAILS`,
       `PUBLIC_BASE_URL=https://edit.acme.example`.
 - [ ] Run `gen:secrets` as the client user (the provision script prints the command; no password). Never `PORT`, only `PORT_HOST`.
 - [ ] Run `check:env` the same way. It names missing variables and prints no values.

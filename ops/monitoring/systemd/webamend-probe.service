@@ -1,14 +1,14 @@
 [Unit]
-Description=Collect Lexi metrics for the node_exporter textfile collector
-Documentation=file:///opt/lexi/src/ops/MONITORING.md
+Description=Collect Webamend metrics for the node_exporter textfile collector
+Documentation=file:///opt/webamend/src/ops/MONITORING.md
 After=network-online.target
 
 [Service]
 Type=oneshot
 # HEARTBEAT_URL lives here, 0600 root. Never in a client .env: a client user
 # can read their own, and this token is host-wide authority.
-EnvironmentFile=-/etc/lexi/monitoring.env
-ExecStart=/opt/lexi/src/ops/probe.sh
+EnvironmentFile=-/etc/webamend/monitoring.env
+ExecStart=/opt/webamend/src/ops/probe.sh
 # The collection becomes another thing competing for a box that is already
 # oversubscribed on memory. It is never more urgent than serving a client.
 Nice=10

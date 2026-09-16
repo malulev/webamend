@@ -1,9 +1,9 @@
 [Unit]
-Description=Lexi host admission queue (socket)
-Documentation=file:///opt/lexi/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
+Description=Webamend host admission queue (socket)
+Documentation=file:///opt/webamend/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
 
 [Socket]
-ListenStream=/run/lexi/slotd.sock
+ListenStream=/run/webamend/slotd.sock
 # 0666 is deliberate: reachability is not authorization. The daemon identifies
 # every connection by SO_PEERCRED and refuses any uid that is not an enrolled
 # client. A rootless container's process does not carry its user's host group

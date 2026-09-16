@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Local stress test for lexi-slotd.
+Local stress test for webamend-slotd.
 
 Starts the daemon on a temp socket with a fixed capacity, then launches N
 fake clients that each ask for a slot, allocate a real block of memory while
@@ -45,10 +45,10 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import lexi_slotd as slotd  # noqa: E402
+import webamend_slotd as slotd  # noqa: E402
 
 MB = 1024 ** 2
-DAEMON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lexi_slotd.py")
+DAEMON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webamend_slotd.py")
 
 
 class BudgetExceeded(RuntimeError):

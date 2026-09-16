@@ -1,13 +1,13 @@
 [Unit]
-Description=Collect Lexi metrics including per-client disk usage
-Documentation=file:///opt/lexi/src/ops/MONITORING.md
+Description=Collect Webamend metrics including per-client disk usage
+Documentation=file:///opt/webamend/src/ops/MONITORING.md
 
 [Service]
 Type=oneshot
-EnvironmentFile=-/etc/lexi/monitoring.env
+EnvironmentFile=-/etc/webamend/monitoring.env
 # `du` over every client's git mirror. Separated from the 60s collection
 # because it is the one expensive part, and the disk *alert* comes from df via
 # node_exporter anyway — this is for attribution, not for paging.
-ExecStart=/opt/lexi/src/ops/probe.sh --full
+ExecStart=/opt/webamend/src/ops/probe.sh --full
 Nice=15
 IOSchedulingClass=idle

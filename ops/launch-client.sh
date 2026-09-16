@@ -60,7 +60,7 @@ Examples:
 USAGE
 }
 
-CLIENT_ROOT=/srv/lexi
+CLIENT_ROOT=/srv/webamend
 CADDYFILE=/etc/caddy/Caddyfile
 REGISTRY_PORT=5000
 DNS_TIMEOUT=900

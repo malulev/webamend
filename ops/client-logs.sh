@@ -3,14 +3,14 @@
 # account (the `claude` user) that must not become root or the client user.
 #
 # Install (as root), one line per client that should be readable:
-#   install -o root -g root -m 0755 ops/client-logs.sh /usr/local/bin/lexi-logs
-#   echo 'claude ALL=(malulev) NOPASSWD: /usr/local/bin/lexi-logs' > /etc/sudoers.d/lexi-logs-claude
-#   chmod 0440 /etc/sudoers.d/lexi-logs-claude && visudo -c
+#   install -o root -g root -m 0755 ops/client-logs.sh /usr/local/bin/webamend-logs
+#   echo 'claude ALL=(malulev) NOPASSWD: /usr/local/bin/webamend-logs' > /etc/sudoers.d/webamend-logs-claude
+#   chmod 0440 /etc/sudoers.d/webamend-logs-claude && visudo -c
 #
 # Use (as claude):
-#   sudo -u malulev lexi-logs logs --since 30m
-#   sudo -u malulev lexi-logs ps
-#   sudo -u malulev lexi-logs inspect
+#   sudo -u malulev webamend-logs logs --since 30m
+#   sudo -u malulev webamend-logs ps
+#   sudo -u malulev webamend-logs inspect
 #
 # The grant runs this script as the CLIENT user against the client's own
 # rootless daemon, never as root. The script exposes exactly three read-only
@@ -25,8 +25,8 @@ slug="$(id -un)"
 container="${slug}-app-1"
 uid="$(id -u)"
 
-if [ "$slug" = "root" ] || [ ! -d "/srv/lexi/${slug}" ]; then
-  echo "lexi-logs: must run as a client user (sudo -u <slug> lexi-logs ...)" >&2
+if [ "$slug" = "root" ] || [ ! -d "/srv/webamend/${slug}" ]; then
+  echo "webamend-logs: must run as a client user (sudo -u <slug> webamend-logs ...)" >&2
   exit 1
 fi
 
@@ -36,16 +36,16 @@ cd /   # sudo keeps the caller's cwd, which the client user may not be able to s
 
 usage() {
   cat >&2 <<USAGE
-usage: lexi-logs logs [--since <t>] [--until <t>] [--tail <n>] [-t|--timestamps]
-       lexi-logs ps
-       lexi-logs inspect
+usage: webamend-logs logs [--since <t>] [--until <t>] [--tail <n>] [-t|--timestamps]
+       webamend-logs ps
+       webamend-logs inspect
 USAGE
   exit 2
 }
 
 reject_dash() {
   case "$1" in
-    -*) echo "lexi-logs: refused value: $1" >&2; exit 2 ;;
+    -*) echo "webamend-logs: refused value: $1" >&2; exit 2 ;;
   esac
 }
 
@@ -67,7 +67,7 @@ case "$cmd" in
         -t|--timestamps)
           args+=("$1"); shift ;;
         *)
-          echo "lexi-logs: refused argument: $1" >&2; exit 2 ;;
+          echo "webamend-logs: refused argument: $1" >&2; exit 2 ;;
       esac
     done
     exec docker logs "${args[@]}" "$container"

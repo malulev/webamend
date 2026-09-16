@@ -6,8 +6,8 @@ skip one.
 
 Steps 1–4 are worth doing on their own. Step 5 onwards needs accounts.
 
-Replace `<host>` with the VPS address and `/opt/prosel/src` with your checkout
-if it differs (the directory name predates the rename to Lexi).
+Replace `<host>` with the VPS address and `/opt/webamend/src` with your checkout
+if it differs (the directory name predates the rename to Webamend).
 
 ---
 
@@ -49,7 +49,7 @@ fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /
 echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
 # Cap the host daemon's container logs. Uncapped by default, on a filesystem
-# shared with /srv/lexi and every client's image store.
+# shared with /srv/webamend and every client's image store.
 mkdir -p /etc/docker
 cat > /etc/docker/daemon.json <<'JSON'
 { "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "3" } }
@@ -78,7 +78,7 @@ df -h /          # note the figure, to compare after a week
 ## Step 2 — deploy the code (root)
 
 ```bash
-cd /opt/prosel/src && git pull
+cd /opt/webamend/src && git pull
 ops/release.sh
 ```
 
@@ -93,12 +93,12 @@ differently:
 | Waits for `/api/health` **and** `/api/ready`                          | A release that starts but cannot reach GitHub now fails instead of passing            |
 | **Rolls back on failure**                                             | A failed client returns to its previous image and reports `ROLLED-BACK`, not `FAILED` |
 | Writes `APP_SHA` per client                                           | Version drift is visible from outside the box                                         |
-| Holds `/var/lib/lexi/maintenance` while rolling                       | Alerts stay quiet during deploys                                                      |
+| Holds `/var/lib/webamend/maintenance` while rolling                       | Alerts stay quiet during deploys                                                      |
 
 **Verify:**
 
 ```bash
-cd /tmp && /opt/prosel/src/ops/status.sh
+cd /tmp && /opt/webamend/src/ops/status.sh
 ```
 
 Expect every client `up / running / :PORT ok / ready`, and the IMAGE column
@@ -164,41 +164,41 @@ because silence is its signal.
 2. On the host, as root:
 
    ```bash
-   /opt/prosel/src/ops/install-monitoring.sh
+   /opt/webamend/src/ops/install-monitoring.sh
    ```
 
-   It writes `/etc/lexi/monitoring.env` (0600 root), creates
+   It writes `/etc/webamend/monitoring.env` (0600 root), creates
    `/var/lib/node_exporter/textfile`, installs and starts the two probe timers,
    and caps journald. It prints variable **names** only — never values.
 
 3. Paste the ping URL:
 
    ```bash
-   $EDITOR /etc/lexi/monitoring.env      # HEARTBEAT_URL=...
-   systemctl restart lexi-probe.timer
+   $EDITOR /etc/webamend/monitoring.env      # HEARTBEAT_URL=...
+   systemctl restart webamend-probe.timer
    ```
 
 **Verify:**
 
 ```bash
-systemctl list-timers 'lexi-*'            # both timers scheduled
-systemctl start lexi-probe.service        # run one collection now
-cat /var/lib/node_exporter/textfile/lexi.prom | head -20
+systemctl list-timers 'webamend-*'            # both timers scheduled
+systemctl start webamend-probe.service        # run one collection now
+cat /var/lib/node_exporter/textfile/webamend.prom | head -20
 ```
 
-You should see `lexi_client_app_up`, `lexi_client_ready_ok`, and
-`lexi_clients_total` — the host's agent ceiling (each client can run one at a
+You should see `webamend_client_app_up`, `webamend_client_ready_ok`, and
+`webamend_clients_total` — the host's agent ceiling (each client can run one at a
 time), which nothing in the product can see.
 
 **Then prove the alert actually fires:**
 
 ```bash
-systemctl stop lexi-probe.timer
+systemctl stop webamend-probe.timer
 # wait out the grace period; confirm the email arrives
-systemctl start lexi-probe.timer      # do not forget this
+systemctl start webamend-probe.timer      # do not forget this
 ```
 
-Only the 60-second run pings — `lexi-probe-full.timer` deliberately does not,
+Only the 60-second run pings — `webamend-probe-full.timer` deliberately does not,
 so stopping this one timer is enough to make the check go red. And the test
 proves nothing until `HEARTBEAT_URL` is set and the check has had at least one
 successful ping: with an empty URL `probe.sh` never pings, so there is no
@@ -219,7 +219,7 @@ An alert you have never seen fire is not an alert.
    - the Loki push URL and its numeric user id
    - one access policy token with `metrics:write` and `logs:write`
 
-2. Put them in `/etc/lexi/monitoring.env`. That file is 0600 root and never a
+2. Put them in `/etc/webamend/monitoring.env`. That file is 0600 root and never a
    client `.env` — a client user can read their own, and these tokens are
    host-wide authority over the whole fleet's telemetry.
 
@@ -230,8 +230,8 @@ An alert you have never seen fire is not an alert.
    this box:
 
    ```bash
-   alloy fmt /opt/prosel/src/ops/monitoring/alloy/config.alloy
-   alloy validate /opt/prosel/src/ops/monitoring/alloy/config.alloy
+   alloy fmt /opt/webamend/src/ops/monitoring/alloy/config.alloy
+   alloy validate /opt/webamend/src/ops/monitoring/alloy/config.alloy
    ```
 
    Fix anything it reports before continuing. The blocks most likely to need
@@ -241,7 +241,7 @@ An alert you have never seen fire is not an alert.
 5. Then:
 
    ```bash
-   /opt/prosel/src/ops/install-monitoring.sh --with-alloy
+   /opt/webamend/src/ops/install-monitoring.sh --with-alloy
    ```
 
    It installs the config and a systemd drop-in capping Alloy at
@@ -256,15 +256,15 @@ journalctl -u alloy -n 30 --no-pager
 systemctl show alloy -p MemoryCurrent      # should stay well under 200M
 ```
 
-In Grafana, query `lexi_clients_total` and
-`{job="lexi"} | json | event="request.ended"`.
+In Grafana, query `webamend_clients_total` and
+`{job="webamend"} | json | event="request.ended"`.
 
 **Before you consider this step done, confirm no agent output is reaching
 Loki.** The container-log glob matches agent containers too — raw model output
 taken over a client's private tree. The `stage.drop` block is what excludes it:
 
 ```
-{job="lexi"} | json | event=""
+{job="webamend"} | json | event=""
 ```
 
 That query must return nothing.
@@ -285,7 +285,7 @@ Two rules need something outside Grafana's metrics:
   and cannot tell you the box is unreachable.
 - **A3, dead-man.** Already done in step 4.
 
-**Every tier-A rule must carry `unless lexi_maintenance == 1`.** Without it,
+**Every tier-A rule must carry `unless webamend_maintenance == 1`.** Without it,
 `ops/release.sh` pages you on every deploy, and an alert system that cries
 during normal work gets muted — which looks like coverage without being any.
 
@@ -318,8 +318,8 @@ keeps working when the other two are down.
 | Raw container logs on disk           | `/home/<slug>/.local/share/docker/containers/*/*-json.log` |
 | Caddy, dockerd, sshd                 | `journalctl -u caddy -n 100` · `journalctl -u docker`      |
 | A client's rootless daemon           | `journalctl --user-unit docker -M <slug>@`                 |
-| The metrics file the collector reads | `/var/lib/node_exporter/textfile/lexi.prom`                |
-| Is a release in progress             | `ls /var/lib/lexi/maintenance`                             |
+| The metrics file the collector reads | `/var/lib/node_exporter/textfile/webamend.prom`                |
+| Is a release in progress             | `ls /var/lib/webamend/maintenance`                             |
 
 The application log is JSON, one object per line. Read it with `grep`, or more
 comfortably:
@@ -343,13 +343,13 @@ source at the top left.
 **Logs — pick your Loki data source**, then paste:
 
 ```logql
-{job="lexi"}                                        # everything, all clients
-{job="lexi", slug="imidan"}                         # one client
-{job="lexi", level="error"}                         # only what went wrong
-{job="lexi", event="request.ended"} | json          # every finished request
-{job="lexi", event="request.ended"} | json | outcome="failed"
-{job="lexi", event="slot.waited"} | json            # capacity pressure
-{job="lexi-host", unit="caddy.service"}             # HTTP access logs
+{job="webamend"}                                        # everything, all clients
+{job="webamend", slug="imidan"}                         # one client
+{job="webamend", level="error"}                         # only what went wrong
+{job="webamend", event="request.ended"} | json          # every finished request
+{job="webamend", event="request.ended"} | json | outcome="failed"
+{job="webamend", event="slot.waited"} | json            # capacity pressure
+{job="webamend-host", unit="caddy.service"}             # HTTP access logs
 ```
 
 Click any line to expand the parsed fields — `costUsd`, `durationMs`,
@@ -358,12 +358,12 @@ Click any line to expand the parsed fields — `costUsd`, `durationMs`,
 **Metrics — pick your Prometheus data source**, then:
 
 ```promql
-lexi_client_app_up                                  # 1 or 0 per client
-lexi_client_ready_ok                                # credentials still valid
-lexi_clients_total                                  # agent ceiling: one per client
-node_memory_MemAvailable_bytes{project="lexi"}      # against the line above
-node_filesystem_avail_bytes{project="lexi",mountpoint="/"}
-lexi_client_info                                    # deployed image and commit
+webamend_client_app_up                                  # 1 or 0 per client
+webamend_client_ready_ok                                # credentials still valid
+webamend_clients_total                                  # agent ceiling: one per client
+node_memory_MemAvailable_bytes{project="webamend"}      # against the line above
+node_filesystem_avail_bytes{project="webamend",mountpoint="/"}
+webamend_client_info                                    # deployed image and commit
 ```
 
 **Alerting → Alert rules** shows what is firing and the history of what has
@@ -380,17 +380,17 @@ instance to validate one against.
 
 | Panel                    | Type                      | Query                                                                                                        |
 | ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Clients up               | Stat                      | `lexi_client_app_up`                                                                                         |
-| Credentials valid        | Stat                      | `lexi_client_ready_ok`                                                                                       |
-| Memory headroom          | Time series, two series   | `node_memory_MemAvailable_bytes` and `lexi_clients_total * 419430400` (every client running one agent at the measured ~400 MB each)                                    |
+| Clients up               | Stat                      | `webamend_client_app_up`                                                                                         |
+| Credentials valid        | Stat                      | `webamend_client_ready_ok`                                                                                       |
+| Memory headroom          | Time series, two series   | `node_memory_MemAvailable_bytes` and `webamend_clients_total * 419430400` (every client running one agent at the measured ~400 MB each)                                    |
 | Disk free                | Gauge                     | `node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}`                   |
-| Requests by outcome      | Bar chart                 | `sum by (outcome) (count_over_time({job="lexi", event="request.ended"} \| json [1d]))`                       |
-| Failures by cause        | Table                     | `sum by (errorCode) (count_over_time({job="lexi", event="request.ended"} \| json \| outcome="failed" [7d]))` |
-| Duration p95             | Time series               | `quantile_over_time(0.95, {job="lexi", event="request.ended"} \| json \| unwrap durationMs [1h])`            |
+| Requests by outcome      | Bar chart                 | `sum by (outcome) (count_over_time({job="webamend", event="request.ended"} \| json [1d]))`                       |
+| Failures by cause        | Table                     | `sum by (errorCode) (count_over_time({job="webamend", event="request.ended"} \| json \| outcome="failed" [7d]))` |
+| Duration p95             | Time series               | `quantile_over_time(0.95, {job="webamend", event="request.ended"} \| json \| unwrap durationMs [1h])`            |
 | Where the time goes      | Time series, three series | same, unwrapping `runningMs`, `buildingMs`, `preparingMs`                                                    |
-| Spend per client per day | Bar chart                 | `sum by (slug) (sum_over_time({job="lexi", event="request.ended"} \| json \| unwrap costUsd [1d]))`          |
-| Queue wait p90           | Time series               | `quantile_over_time(0.9, {job="lexi", event="slot.waited"} \| json \| unwrap waitedMs [1d])`                 |
-| Undos                    | Stat                      | `count_over_time({job="lexi", event="publication.ended"} \| json \| kind="undo" [7d])`                       |
+| Spend per client per day | Bar chart                 | `sum by (slug) (sum_over_time({job="webamend", event="request.ended"} \| json \| unwrap costUsd [1d]))`          |
+| Queue wait p90           | Time series               | `quantile_over_time(0.9, {job="webamend", event="slot.waited"} \| json \| unwrap waitedMs [1d])`                 |
+| Undos                    | Stat                      | `count_over_time({job="webamend", event="publication.ended"} \| json \| kind="undo" [7d])`                       |
 
 Put **memory headroom** and **spend per client** at the top. They are the two
 that tell you something before a client does: the first is this box's actual
@@ -400,7 +400,7 @@ cannot see.
 Grafana Cloud also ships a prebuilt **Node Exporter Full** dashboard
 (Dashboards → New → Import → ID `1860`) which covers CPU, memory, disk and
 network with no work at all. Import it for the host view and keep your own
-dashboard for the Lexi-specific panels above.
+dashboard for the Webamend-specific panels above.
 
 ## If something goes wrong
 
@@ -408,8 +408,8 @@ dashboard for the Lexi-specific panels above.
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
 | A client is `ROLLED-BACK`            | It is serving its old version. `curl 127.0.0.1:<PORT>/api/ready` names the faulty setting.                                      |
 | A client is `FAILED`                 | The rollback failed too — that client is down. `ops/status.sh <slug> --logs`.                                                   |
-| Alerts firing during every deploy    | The `unless lexi_maintenance == 1` clause is missing from a rule.                                                               |
-| Alerts silent after a crashed deploy | `rm -f /var/lib/lexi/maintenance` — the trap should clear it, but check.                                                        |
+| Alerts firing during every deploy    | The `unless webamend_maintenance == 1` clause is missing from a rule.                                                               |
+| Alerts silent after a crashed deploy | `rm -f /var/lib/webamend/maintenance` — the trap should clear it, but check.                                                        |
 | Alloy eating memory                  | The drop-in caps it at 200M. If it is being killed repeatedly, reduce what `config.alloy` collects rather than raising the cap. |
 | Free-tier data stops arriving        | You are probably at the cap. Drop `debug`-level logs first; keep `request.ended` always.                                        |
 
@@ -425,7 +425,7 @@ schema, the lock and the conversation-as-PR model are untouched.
   defaults to 0 when absent. No alert here can catch spend the agent
   under-reports. The ground truth is OpenRouter's own API; a monthly
   reconciliation is not built.
-- **`lexi_client_agents_running` is a poll**, and `slots.ts` documents its own
+- **`webamend_client_agents_running` is a poll**, and `slots.ts` documents its own
   check-then-act race — a momentary count above the limit is expected
   behaviour, which is why rule A5 carries a 15-minute window.
 - **Grafana Cloud's free allowances and retention change.** Verify them against

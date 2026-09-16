@@ -6,7 +6,7 @@
  * and no surface can drift to an older name.
  */
 export const BRAND = {
-  name: 'Lexi',
+  name: 'Webamend',
   /** The promise, in the client's terms. */
   tagline: 'Say what you want changed. See it before it goes live.',
   /** One line for the browser tab and link previews. */

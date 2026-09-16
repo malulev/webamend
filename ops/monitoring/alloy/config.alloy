@@ -40,7 +40,7 @@ prometheus.exporter.unix "host" {
 
   textfile {
     // Written by ops/probe.sh: the per-client facts no generic exporter knows,
-    // including lexi_clients_total, the host's agent ceiling.
+    // including webamend_clients_total, the host's agent ceiling.
     directory = "/var/lib/node_exporter/textfile"
   }
 }
@@ -60,13 +60,13 @@ prometheus.scrape "host" {
 
 prometheus.remote_write "grafana" {
   // One Grafana Cloud stack usually serves more than one project — the free
-  // tier allows exactly one. `lexi_*` is already a unique prefix, but
+  // tier allows exactly one. `webamend_*` is already a unique prefix, but
   // `node_cpu_seconds_total` from this host is indistinguishable from the same
   // metric shipped by anything else you own. This stamps every series, so a
   // query, a dashboard variable or an alert rule can always say which project
   // it means.
   external_labels = {
-    project = "lexi",
+    project = "webamend",
   }
 
   endpoint {
@@ -76,7 +76,7 @@ prometheus.remote_write "grafana" {
       password = sys.env("GRAFANA_CLOUD_TOKEN")
     }
     // Bounded deliberately: the write-ahead log sits on the same 38 GB
-    // filesystem as /srv/lexi and every client's image store, so an outage at
+    // filesystem as /srv/webamend and every client's image store, so an outage at
     // the far end must not become a disk outage here.
     queue_config {
       capacity              = 2500
@@ -103,7 +103,7 @@ prometheus.remote_write "grafana" {
 local.file_match "containers" {
   path_targets = [{
     __path__ = "/home/*/.local/share/docker/containers/*/*-json.log",
-    job      = "lexi",
+    job      = "webamend",
   }]
 }
 
@@ -124,10 +124,10 @@ discovery.relabel "containers" {
 
 loki.source.file "containers" {
   targets    = discovery.relabel.containers.output
-  forward_to = [loki.process.lexi.receiver]
+  forward_to = [loki.process.webamend.receiver]
 }
 
-loki.process "lexi" {
+loki.process "webamend" {
   forward_to = [loki.write.grafana.receiver]
 
   // Docker's json-file envelope first; the application's own line is inside.
@@ -159,10 +159,10 @@ loki.process "lexi" {
   // output on this daemon when they do (src/lib/runner/docker.ts) — so the
   // json-file is on disk and this glob does find it.
   stage.match {
-    selector = "{job=\"lexi\"} !~ \".*\\\"event\\\":.*\""
+    selector = "{job=\"webamend\"} !~ \".*\\\"event\\\":.*\""
     action   = "drop"
 
-    drop_counter_reason = "not_a_lexi_event"
+    drop_counter_reason = "not_a_webamend_event"
   }
 
   // The one application line that carries agent output: the agent's last
@@ -172,7 +172,7 @@ loki.process "lexi" {
   // `agent.run_failed`, carries no detail and ships. A line match again, for
   // the reason above.
   stage.match {
-    selector = "{job=\"lexi\"} |= \"\\\"event\\\":\\\"agent.run_failed_detail\\\"\""
+    selector = "{job=\"webamend\"} |= \"\\\"event\\\":\\\"agent.run_failed_detail\\\"\""
     action   = "drop"
 
     drop_counter_reason = "agent_output"
@@ -202,7 +202,7 @@ loki.process "lexi" {
   // puts on every metric by itself — without it, a second box's lines are
   // indistinguishable from this one's.
   stage.static_labels {
-    values = { project = "lexi", host = constants.hostname }
+    values = { project = "webamend", host = constants.hostname }
   }
   stage.timestamp {
     source = "ts"
@@ -235,7 +235,7 @@ loki.source.journal "host" {
   // Namespaced deliberately: a bare job="systemd" collides with every other
   // host that ships a journal to the same stack, and the two sets are
   // indistinguishable once mixed.
-  labels     = { job = "lexi-host", project = "lexi", host = constants.hostname }
+  labels     = { job = "webamend-host", project = "webamend", host = constants.hostname }
   relabel_rules = loki.relabel.journal.rules
   max_age    = "12h"
 }

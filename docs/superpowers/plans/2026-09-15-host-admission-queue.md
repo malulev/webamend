@@ -4,7 +4,7 @@
 
 **Goal:** A host-wide FIFO admission queue so that any number of clients editing at once never start more agent containers than the host can carry — and a local stress harness that proves it on a developer's Mac within a memory budget.
 
-**Architecture:** A stdlib-only Python daemon (`lexi-slotd`) owns the queue behind a unix socket; the connection is the lease, the kernel names the client (`SO_PEERCRED`), capacity is a computed ceiling with a live `MemAvailable` brake, and each grant carries the agent's memory cap. The TypeScript app gains one `AgentSlots` implementation that talks to it and falls back to today's behavior if it is unreachable. Ops scripts install the daemon under systemd and enrol each client.
+**Architecture:** A stdlib-only Python daemon (`webamend-slotd`) owns the queue behind a unix socket; the connection is the lease, the kernel names the client (`SO_PEERCRED`), capacity is a computed ceiling with a live `MemAvailable` brake, and each grant carries the agent's memory cap. The TypeScript app gains one `AgentSlots` implementation that talks to it and falls back to today's behavior if it is unreachable. Ops scripts install the daemon under systemd and enrol each client.
 
 **Tech Stack:** Python 3.9+ standard library (`asyncio`, `socket`, `struct`, `pwd`, `grp`) and `unittest`; TypeScript with `node:net`, Vitest; bash + systemd for ops.
 
@@ -14,9 +14,9 @@
 
 - **Python ≥ 3.9.** The VPS has 3.12; the developer Mac has 3.9.6. No `match`, no `X | Y` at runtime, no `asyncio.TaskGroup`/`asyncio.timeout`, no `dataclass(slots=True)`. Use `from __future__ import annotations`.
 - **Standard library only** for the daemon, its tests, and the harness. No `pip install` anywhere.
-- **The daemon file is `ops/slotd/lexi_slotd.py`** (underscore, so tests import it). The spec wrote `lexi-slotd.py`; the systemd unit and docs use the underscore name.
-- **Socket mode is `0666`, not the spec's `0660`.** A rootless container's process does not carry the client's host group memberships, so a group-restricted socket would refuse the very apps it serves. Reachability is not authorization: every connection is identified by `SO_PEERCRED` and refused unless its uid maps to a member of `lexi-slots`. The group is the authorization list and the client count; the mode is only reachability.
-- **Compose mounts the directory `/run/lexi`, not the socket file.** A bind mount of a missing file makes Docker create a *directory* at that path; a missing directory is harmless and lets the socket appear later.
+- **The daemon file is `ops/slotd/webamend_slotd.py`** (underscore, so tests import it). The spec wrote `webamend-slotd.py`; the systemd unit and docs use the underscore name.
+- **Socket mode is `0666`, not the spec's `0660`.** A rootless container's process does not carry the client's host group memberships, so a group-restricted socket would refuse the very apps it serves. Reachability is not authorization: every connection is identified by `SO_PEERCRED` and refused unless its uid maps to a member of `webamend-slots`. The group is the authorization list and the client count; the mode is only reachability.
+- **Compose mounts the directory `/run/webamend`, not the socket file.** A bind mount of a missing file makes Docker create a *directory* at that path; a missing directory is harmless and lets the socket appear later.
 - **No new client-facing strings.** Refusal reasons go into `errorDetail`, never prose (Principle I). The four locales are untouched.
 - **`tsconfig`:** `strict`, `noUncheckedIndexedAccess: true`, `exactOptionalPropertyTypes: false`.
 - **Log event names are a closed union** in `src/lib/log/events.ts`; a new event must be added there or it will not compile.
@@ -32,11 +32,11 @@
 
 | Path | Responsibility |
 |---|---|
-| `ops/slotd/lexi_slotd.py` | The daemon: sizes/config, capacity, platform layer, broker (queue), server (protocol + identity), `status` CLI |
-| `ops/slotd/test_lexi_slotd.py` | `unittest` suite for all of the above |
+| `ops/slotd/webamend_slotd.py` | The daemon: sizes/config, capacity, platform layer, broker (queue), server (protocol + identity), `status` CLI |
+| `ops/slotd/test_webamend_slotd.py` | `unittest` suite for all of the above |
 | `ops/slotd/stress.py` | Local stress harness: spawns the daemon and N memory-allocating fake clients inside a budget, prints the timeline, verifies the cap |
 | `ops/slotd/slots.env.example` | Every tunable with its default and basis |
-| `ops/slotd/systemd/lexi-slotd.socket`, `lexi-slotd.service` | Socket-activated unit, unprivileged service |
+| `ops/slotd/systemd/webamend-slotd.socket`, `webamend-slotd.service` | Socket-activated unit, unprivileged service |
 | `src/lib/runner/lease-slots.ts` | `createLeaseSlots`: the app-side client of the daemon, with fallback |
 | `tests/unit/runner/lease-slots.test.ts` | Against a scripted fake broker on a temp unix socket |
 
@@ -53,12 +53,12 @@
 | `src/lib/log/events.ts` | `'slots.broker_unavailable'` |
 | `tests/integration/slots.test.ts` | Fakes return `release`; new cases for release discipline, refusal reason, `memoryBytes` propagation |
 | `tests/unit/runner/isolation.test.ts`, `tests/unit/runner/slots.test.ts`, `tests/unit/config/env.test.ts` | New assertions |
-| `docker-compose.yml` | `/run/lexi` bind mount |
+| `docker-compose.yml` | `/run/webamend` bind mount |
 | `ops/bootstrap-host.sh` | `install_slotd` |
 | `ops/provision-client.sh` | `enroll_in_slots`, `SLOT_BROKER_SOCKET` in the skeleton |
-| `ops/probe.sh`, `ops/status.sh` | `lexi_slots_*` metrics and a `SLOTS` line |
+| `ops/probe.sh`, `ops/status.sh` | `webamend_slots_*` metrics and a `SLOTS` line |
 | `package.json`, `.github/workflows/ci.yml` | `test:slotd`, `stress:slotd`; CI step |
-| `ops/README.md`, `ops/MONITORING.md`, `ops/monitoring/grafana/alert-rules.md`, `ops/monitoring/grafana/dashboard-health.json` | Document and switch the demand line to `lexi_slots_capacity` |
+| `ops/README.md`, `ops/MONITORING.md`, `ops/monitoring/grafana/alert-rules.md`, `ops/monitoring/grafana/dashboard-health.json` | Document and switch the demand line to `webamend_slots_capacity` |
 
 ---
 
@@ -69,8 +69,8 @@ Everything the user needs to run `npm run stress:slotd` on a Mac and watch the q
 ### Task 1: Sizes, configuration, capacity
 
 **Files:**
-- Create: `ops/slotd/lexi_slotd.py`
-- Create: `ops/slotd/test_lexi_slotd.py`
+- Create: `ops/slotd/webamend_slotd.py`
+- Create: `ops/slotd/test_webamend_slotd.py`
 - Create: `ops/slotd/__init__.py` (empty — makes `python3 -m unittest discover -s ops/slotd` import the module)
 
 **Interfaces:**
@@ -79,16 +79,16 @@ Everything the user needs to run `npm run stress:slotd` on a Mac and watch the q
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# ops/slotd/test_lexi_slotd.py
+# ops/slotd/test_webamend_slotd.py
 """
-Tests for lexi-slotd. Standard library only, no root, no Docker.
+Tests for webamend-slotd. Standard library only, no root, no Docker.
 Run: python3 -m unittest discover -s ops/slotd -p 'test_*.py' -v
 """
 from __future__ import annotations
 
 import unittest
 
-import lexi_slotd as slotd
+import webamend_slotd as slotd
 
 
 class SizesAndConfig(unittest.TestCase):
@@ -113,8 +113,8 @@ class SizesAndConfig(unittest.TestCase):
         self.assertEqual(config.cpu_oversubscribe, 2.0)
         self.assertEqual(config.brake_margin, slotd.parse_size("200M"))
         self.assertEqual(config.identity, "peer")
-        self.assertEqual(config.group, "lexi-slots")
-        self.assertEqual(config.socket_path, "/run/lexi/slotd.sock")
+        self.assertEqual(config.group, "webamend-slots")
+        self.assertEqual(config.socket_path, "/run/webamend/slotd.sock")
         self.assertIsNone(config.clients_override)
         self.assertIsNone(config.capacity_override)
 
@@ -188,14 +188,14 @@ if __name__ == "__main__":
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `touch ops/slotd/__init__.py && python3 -m unittest discover -s ops/slotd -p 'test_*.py' 2>&1 | tail -3`
-Expected: `ModuleNotFoundError: No module named 'lexi_slotd'`
+Expected: `ModuleNotFoundError: No module named 'webamend_slotd'`
 
 - [ ] **Step 3: Write the module header, sizes, config, capacity**
 
 ```python
 #!/usr/bin/env python3
 """
-lexi-slotd: host-wide admission for agent runs.
+webamend-slotd: host-wide admission for agent runs.
 
 One daemon per host. Client apps connect over a unix socket, ask for a slot,
 and hold the connection for as long as their agent runs. The connection is the
@@ -256,8 +256,8 @@ class Config:
     # names itself in the acquire message. The second exists so a developer can
     # run ten fake clients from one uid on a Mac; it is never set in production.
     identity: str = "peer"
-    group: str = "lexi-slots"
-    socket_path: str = "/run/lexi/slotd.sock"
+    group: str = "webamend-slots"
+    socket_path: str = "/run/webamend/slotd.sock"
     clients_override: Optional[int] = None
     capacity_override: Optional[int] = None
     ring_size: int = 50
@@ -312,7 +312,7 @@ Expected: `OK` with 12 tests
 
 ```bash
 git checkout -b host-admission-queue
-git add ops/slotd/__init__.py ops/slotd/lexi_slotd.py ops/slotd/test_lexi_slotd.py
+git add ops/slotd/__init__.py ops/slotd/webamend_slotd.py ops/slotd/test_webamend_slotd.py
 git commit -m "feat(slotd): sizes, configuration and capacity formula
 
 The formula and every default trace to the 2026-09-14 stress test; the table
@@ -327,8 +327,8 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 ### Task 2: The platform layer
 
 **Files:**
-- Modify: `ops/slotd/lexi_slotd.py` (append after `compute_capacity`)
-- Modify: `ops/slotd/test_lexi_slotd.py` (append)
+- Modify: `ops/slotd/webamend_slotd.py` (append after `compute_capacity`)
+- Modify: `ops/slotd/test_webamend_slotd.py` (append)
 
 **Interfaces:**
 - Produces: `class Platform` with `mem_total() -> int`, `mem_available() -> int`, `cpu_count() -> int`, `peer_uid(sock) -> int`, `group_members(group) -> list[str]`, `uid_to_name(uid) -> str | None`; `LinuxPlatform`, `DarwinPlatform`, `FakePlatform(mem_total, mem_available, cpu_count, uid, members, names)`; `detect_platform() -> Platform`; pure helpers `parse_meminfo(text) -> dict`, `parse_subuid(text, uid) -> str | None`, `parse_vm_stat(text) -> int`.
@@ -336,7 +336,7 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# append to ops/slotd/test_lexi_slotd.py
+# append to ops/slotd/test_webamend_slotd.py
 import os
 import socket
 
@@ -425,12 +425,12 @@ class FakePlatformBehaves(unittest.TestCase):
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m unittest discover -s ops/slotd -p 'test_*.py' 2>&1 | tail -3`
-Expected: `AttributeError: module 'lexi_slotd' has no attribute 'parse_meminfo'` (and siblings)
+Expected: `AttributeError: module 'webamend_slotd' has no attribute 'parse_meminfo'` (and siblings)
 
 - [ ] **Step 3: Write the platform layer**
 
 ```python
-# append to ops/slotd/lexi_slotd.py
+# append to ops/slotd/webamend_slotd.py
 
 # ---------------------------------------------------------------------------
 # Platform: what the daemon needs from the host
@@ -615,7 +615,7 @@ Expected: `OK` with 19 tests
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ops/slotd/lexi_slotd.py ops/slotd/test_lexi_slotd.py
+git add ops/slotd/webamend_slotd.py ops/slotd/test_webamend_slotd.py
 git commit -m "feat(slotd): platform layer for Linux, macOS and tests
 
 Identity from SO_PEERCRED on Linux and LOCAL_PEERCRED on Darwin; memory from
@@ -630,8 +630,8 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 ### Task 3: The broker — FIFO, capacity, brake, early refusal
 
 **Files:**
-- Modify: `ops/slotd/lexi_slotd.py` (append)
-- Modify: `ops/slotd/test_lexi_slotd.py` (append)
+- Modify: `ops/slotd/webamend_slotd.py` (append)
+- Modify: `ops/slotd/test_webamend_slotd.py` (append)
 
 **Interfaces:**
 - Produces: `class Grant(memory_bytes: int, waited_seconds: float)`; `class Refusal(reason: str)`; `class Broker(config, platform, capacity, clock=time.monotonic, log=noop)` with `async acquire(client, request_id, max_wait_ms, on_queued) -> Grant | Refusal`, `release(client)`, `refuse(client, request_id, reason) -> Refusal`, `pump()`, `status() -> dict`, attribute `capacity` (settable), `braked: bool`.
@@ -639,7 +639,7 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# append to ops/slotd/test_lexi_slotd.py
+# append to ops/slotd/test_webamend_slotd.py
 import asyncio
 
 
@@ -833,12 +833,12 @@ class BrokerStatus(unittest.IsolatedAsyncioTestCase):
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m unittest discover -s ops/slotd -p 'test_*.py' 2>&1 | tail -3`
-Expected: `AttributeError: module 'lexi_slotd' has no attribute 'Broker'`
+Expected: `AttributeError: module 'webamend_slotd' has no attribute 'Broker'`
 
 - [ ] **Step 3: Write the broker**
 
 ```python
-# append to ops/slotd/lexi_slotd.py
+# append to ops/slotd/webamend_slotd.py
 
 # ---------------------------------------------------------------------------
 # Broker: the queue
@@ -1057,7 +1057,7 @@ Expected: `OK` with 32 tests
 - [ ] **Step 5: Commit**
 
 ```bash
-git add ops/slotd/lexi_slotd.py ops/slotd/test_lexi_slotd.py
+git add ops/slotd/webamend_slotd.py ops/slotd/test_webamend_slotd.py
 git commit -m "feat(slotd): FIFO broker with capacity, memory brake and early refusal
 
 A lease is a future; cancelling it is leaving the queue. The brake holds the
@@ -1072,8 +1072,8 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 ### Task 4: The server — protocol, identity, socket, signals, `status` CLI
 
 **Files:**
-- Modify: `ops/slotd/lexi_slotd.py` (append)
-- Modify: `ops/slotd/test_lexi_slotd.py` (append)
+- Modify: `ops/slotd/webamend_slotd.py` (append)
+- Modify: `ops/slotd/test_webamend_slotd.py` (append)
 
 **Interfaces:**
 - Produces: `class Server(config, platform, broker, log)` with `async handle(reader, writer)`; `listening_socket(config) -> socket.socket`; `current_capacity(config, platform, log) -> int`; `async serve(config, platform, log)`; `log_line(event, fields)`; `render_prom(status: dict) -> str`; `status_command(argv) -> int`; `main(argv) -> int`.
@@ -1085,7 +1085,7 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# append to ops/slotd/test_lexi_slotd.py
+# append to ops/slotd/test_webamend_slotd.py
 import json
 import tempfile
 
@@ -1283,32 +1283,32 @@ class PromRendering(unittest.TestCase):
             "waitSecondsP50": 12.4, "heldSecondsP50": 40.0,
             "refused": {"already_holding": 1}, "memoryBytes": 5, "memAvailable": 9, "holders": {},
         })
-        self.assertIn("lexi_slots_capacity 4\n", text)
-        self.assertIn("lexi_slots_leased 2\n", text)
-        self.assertIn("lexi_slots_queued 6\n", text)
-        self.assertIn("lexi_slots_braked 1\n", text)
-        self.assertIn("lexi_slots_wait_seconds_p50 12.4\n", text)
-        self.assertIn('lexi_slots_refused_total{reason="already_holding"} 1\n', text)
-        self.assertIn('lexi_slots_refused_total{reason="projected_wait_exceeds_ceiling"} 0\n', text)
-        self.assertIn('lexi_slots_refused_total{reason="unknown_client"} 0\n', text)
-        self.assertIn("# TYPE lexi_slots_capacity gauge\n", text)
+        self.assertIn("webamend_slots_capacity 4\n", text)
+        self.assertIn("webamend_slots_leased 2\n", text)
+        self.assertIn("webamend_slots_queued 6\n", text)
+        self.assertIn("webamend_slots_braked 1\n", text)
+        self.assertIn("webamend_slots_wait_seconds_p50 12.4\n", text)
+        self.assertIn('webamend_slots_refused_total{reason="already_holding"} 1\n', text)
+        self.assertIn('webamend_slots_refused_total{reason="projected_wait_exceeds_ceiling"} 0\n', text)
+        self.assertIn('webamend_slots_refused_total{reason="unknown_client"} 0\n', text)
+        self.assertIn("# TYPE webamend_slots_capacity gauge\n", text)
 
     def test_omits_the_wait_percentile_before_there_is_one(self):
         text = slotd.render_prom({"capacity": 1, "leased": 0, "queued": 0, "braked": False,
                                   "waitSecondsP50": None, "heldSecondsP50": None, "refused": {},
                                   "memoryBytes": 5, "memAvailable": 9, "holders": {}})
-        self.assertNotIn("lexi_slots_wait_seconds_p50", text)
+        self.assertNotIn("webamend_slots_wait_seconds_p50", text)
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `python3 -m unittest discover -s ops/slotd -p 'test_*.py' 2>&1 | tail -3`
-Expected: `AttributeError: module 'lexi_slotd' has no attribute 'Server'`
+Expected: `AttributeError: module 'webamend_slotd' has no attribute 'Server'`
 
 - [ ] **Step 3: Write the server, the socket, capacity-at-startup, logging, CLI**
 
 ```python
-# append to ops/slotd/lexi_slotd.py
+# append to ops/slotd/webamend_slotd.py
 
 # ---------------------------------------------------------------------------
 # Server: the wire protocol and who is on the other end
@@ -1499,18 +1499,18 @@ def render_prom(status: Dict[str, object]) -> str:
         lines.append(f"# TYPE {name} gauge")
         lines.append(f"{name} {value}")
 
-    gauge("lexi_slots_capacity", "Agent runs this host admits at once.", status["capacity"])
-    gauge("lexi_slots_leased", "Agent runs holding a slot now.", status["leased"])
-    gauge("lexi_slots_queued", "Requests waiting for a slot.", status["queued"])
-    gauge("lexi_slots_braked", "1 while the memory brake holds the head of the queue.", 1 if status["braked"] else 0)
+    gauge("webamend_slots_capacity", "Agent runs this host admits at once.", status["capacity"])
+    gauge("webamend_slots_leased", "Agent runs holding a slot now.", status["leased"])
+    gauge("webamend_slots_queued", "Requests waiting for a slot.", status["queued"])
+    gauge("webamend_slots_braked", "1 while the memory brake holds the head of the queue.", 1 if status["braked"] else 0)
     if status.get("waitSecondsP50") is not None:
-        gauge("lexi_slots_wait_seconds_p50", "Median wait of recent granted requests.", status["waitSecondsP50"])
-    lines.append("# HELP lexi_slots_refused_total Requests refused since the daemon started, by reason.")
-    lines.append("# TYPE lexi_slots_refused_total counter")
+        gauge("webamend_slots_wait_seconds_p50", "Median wait of recent granted requests.", status["waitSecondsP50"])
+    lines.append("# HELP webamend_slots_refused_total Requests refused since the daemon started, by reason.")
+    lines.append("# TYPE webamend_slots_refused_total counter")
     refused = status.get("refused") or {}
     assert isinstance(refused, dict)
     for reason in sorted(set(_KNOWN_REASONS) | set(refused)):
-        lines.append(f'lexi_slots_refused_total{{reason="{reason}"}} {refused.get(reason, 0)}')
+        lines.append(f'webamend_slots_refused_total{{reason="{reason}"}} {refused.get(reason, 0)}')
     return "\n".join(lines) + "\n"
 
 
@@ -1526,7 +1526,7 @@ def status_command(argv: List[str]) -> int:
             prom = True
             index += 1
         else:
-            sys.stderr.write("usage: lexi_slotd.py status [--socket PATH] [--prom]\n")
+            sys.stderr.write("usage: webamend_slotd.py status [--socket PATH] [--prom]\n")
             return 2
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
         sock.settimeout(5)
@@ -1550,8 +1550,8 @@ def main(argv: List[str]) -> int:
     if argv and argv[0] == "status":
         return status_command(argv[1:])
     if argv:
-        sys.stderr.write("usage: lexi_slotd.py            # run the daemon (configuration from the environment)\n"
-                         "       lexi_slotd.py status [--socket PATH] [--prom]\n")
+        sys.stderr.write("usage: webamend_slotd.py            # run the daemon (configuration from the environment)\n"
+                         "       webamend_slotd.py status [--socket PATH] [--prom]\n")
         return 2
     asyncio.run(serve(Config.from_env(), detect_platform(), log_line))
     return 0
@@ -1570,21 +1570,21 @@ Expected: `OK` with 48 tests
 
 Run:
 ```bash
-SLOTD_SOCKET=/tmp/slotd-smoke.sock SLOTD_IDENTITY=claimed SLOTD_CAPACITY=1 python3 ops/slotd/lexi_slotd.py &
+SLOTD_SOCKET=/tmp/slotd-smoke.sock SLOTD_IDENTITY=claimed SLOTD_CAPACITY=1 python3 ops/slotd/webamend_slotd.py &
 sleep 0.5
-python3 ops/slotd/lexi_slotd.py status --socket /tmp/slotd-smoke.sock --prom | head -4
+python3 ops/slotd/webamend_slotd.py status --socket /tmp/slotd-smoke.sock --prom | head -4
 kill %1
 ```
-Expected: three JSON log lines (`slotd.capacity`, `slotd.started`, `slotd.identity_claimed`), then `lexi_slots_capacity 1` among the metrics.
+Expected: three JSON log lines (`slotd.capacity`, `slotd.started`, `slotd.identity_claimed`), then `webamend_slots_capacity 1` among the metrics.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add ops/slotd/lexi_slotd.py ops/slotd/test_lexi_slotd.py
+git add ops/slotd/webamend_slotd.py ops/slotd/test_webamend_slotd.py
 git commit -m "feat(slotd): unix-socket server, peer-credential identity, status command
 
 The connection is the lease. Identity comes from the kernel and is checked
-against the lexi-slots group; the socket is 0666 because a rootless container
+against the webamend-slots group; the socket is 0666 because a rootless container
 does not carry its user's host groups, and reachability is not authorization.
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
@@ -1597,18 +1597,18 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 
 **Files:**
 - Create: `ops/slotd/stress.py`
-- Modify: `ops/slotd/test_lexi_slotd.py` (append one automated run with tiny sizes)
+- Modify: `ops/slotd/test_webamend_slotd.py` (append one automated run with tiny sizes)
 - Modify: `package.json` (scripts)
 - Modify: `.github/workflows/ci.yml`
 
 **Interfaces:**
-- Consumes: the daemon as a subprocess (`python3 ops/slotd/lexi_slotd.py` with `SLOTD_*` env) and the wire protocol from Task 4.
+- Consumes: the daemon as a subprocess (`python3 ops/slotd/webamend_slotd.py` with `SLOTD_*` env) and the wire protocol from Task 4.
 - Produces: `python3 ops/slotd/stress.py [--clients N] [--capacity C] [--agent-mb M] [--hold-seconds S] [--budget-mb B] [--brake-threshold-mb T]`; exit 0 iff the observed peak concurrency never exceeded `C`. Importable `run_stress(options) -> Summary` for the test.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
-# append to ops/slotd/test_lexi_slotd.py
+# append to ops/slotd/test_webamend_slotd.py
 import stress
 
 
@@ -1641,7 +1641,7 @@ Expected: `ModuleNotFoundError: No module named 'stress'`
 ```python
 #!/usr/bin/env python3
 """
-Local stress test for lexi-slotd.
+Local stress test for webamend-slotd.
 
 Starts the daemon on a temp socket with a fixed capacity, then launches N
 fake clients that each ask for a slot, allocate a real block of memory while
@@ -1676,10 +1676,10 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import lexi_slotd as slotd  # noqa: E402
+import webamend_slotd as slotd  # noqa: E402
 
 MB = 1024 ** 2
-DAEMON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lexi_slotd.py")
+DAEMON = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webamend_slotd.py")
 
 
 class BudgetExceeded(RuntimeError):
@@ -1941,7 +1941,7 @@ Expected, in order: the host line; eight `queued`/`granted` lines with clients 5
 - [ ] **Step 7: Commit**
 
 ```bash
-git add ops/slotd/stress.py ops/slotd/test_lexi_slotd.py package.json .github/workflows/ci.yml
+git add ops/slotd/stress.py ops/slotd/test_webamend_slotd.py package.json .github/workflows/ci.yml
 git commit -m "feat(slotd): local stress harness with a memory budget
 
 Fake clients allocate real memory while they hold a slot, so the brake trips
@@ -2645,7 +2645,7 @@ import { log } from '@/lib/log';
 import type { AgentSlots, SlotOutcome } from './slots';
 
 /**
- * The app's side of the host admission queue (ops/slotd/lexi_slotd.py; design
+ * The app's side of the host admission queue (ops/slotd/webamend_slotd.py; design
  * in docs/superpowers/specs/2026-09-14-host-admission-queue-design.md).
  *
  * One connection per request. `acquire` is sent, the daemon answers `queued`
@@ -2816,8 +2816,8 @@ In `tests/unit/config/env.test.ts`, where the removed `MAX_CONCURRENT_RUNS` bloc
     });
 
     it('reads the socket path', () => {
-      expect(parseEnv({ ...validRawEnv(), SLOT_BROKER_SOCKET: '/run/lexi/slotd.sock' }).slotBrokerSocket).toBe(
-        '/run/lexi/slotd.sock',
+      expect(parseEnv({ ...validRawEnv(), SLOT_BROKER_SOCKET: '/run/webamend/slotd.sock' }).slotBrokerSocket).toBe(
+        '/run/webamend/slotd.sock',
       );
     });
 
@@ -2840,7 +2840,7 @@ Expected: 2 of the 3 fail (`slotBrokerSocket` is not on `Env`; the empty value i
   PUBLIC_BASE_URL: z.url({ message: 'must be a valid absolute URL' }),
   /**
    * The host admission daemon's socket, as seen from inside the container
-   * (docker-compose.yml mounts /run/lexi at the same path). Unset means no
+   * (docker-compose.yml mounts /run/webamend at the same path). Unset means no
    * host-wide queue: a development machine, or a host not yet upgraded.
    */
   SLOT_BROKER_SOCKET: z.string().min(1, 'must be a socket path when set').optional(),
@@ -2898,7 +2898,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 ```
 
-**Phase 2 checkpoint.** With `SLOT_BROKER_SOCKET` unset nothing has changed; with it set to a running daemon, the app queues. Verifiable locally: start the daemon with `SLOTD_IDENTITY=claimed` — no, the app sends no `client` field, so use the real kernel: `SLOTD_SOCKET=/tmp/s.sock SLOTD_IDENTITY=peer SLOTD_GROUP=staff SLOTD_CAPACITY=1 python3 ops/slotd/lexi_slotd.py` on a Mac (your uid is in `staff`), then `SLOT_BROKER_SOCKET=/tmp/s.sock npm run dev`.
+**Phase 2 checkpoint.** With `SLOT_BROKER_SOCKET` unset nothing has changed; with it set to a running daemon, the app queues. Verifiable locally: start the daemon with `SLOTD_IDENTITY=claimed` — no, the app sends no `client` field, so use the real kernel: `SLOTD_SOCKET=/tmp/s.sock SLOTD_IDENTITY=peer SLOTD_GROUP=staff SLOTD_CAPACITY=1 python3 ops/slotd/webamend_slotd.py` on a Mac (your uid is in `staff`), then `SLOT_BROKER_SOCKET=/tmp/s.sock npm run dev`.
 
 ---
 
@@ -2907,7 +2907,7 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 ### Task 10: Units, environment file, Compose mount, bootstrap and provisioning
 
 **Files:**
-- Create: `ops/slotd/systemd/lexi-slotd.socket`, `ops/slotd/systemd/lexi-slotd.service`
+- Create: `ops/slotd/systemd/webamend-slotd.socket`, `ops/slotd/systemd/webamend-slotd.service`
 - Create: `ops/slotd/slots.env.example`
 - Modify: `docker-compose.yml` (volumes)
 - Modify: `ops/bootstrap-host.sh` (new `install_slotd`, called from `main` after `install_monitoring`)
@@ -2915,18 +2915,18 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 
 **Interfaces:**
 - Consumes: the daemon (Task 4), `SLOT_BROKER_SOCKET` (Task 9).
-- Produces: on a bootstrapped host, `/run/lexi/slotd.sock` served by `lexi-slotd.socket`; each provisioned client is a member of `lexi-slots` and has `SLOT_BROKER_SOCKET=/run/lexi/slotd.sock` in its `.env`.
+- Produces: on a bootstrapped host, `/run/webamend/slotd.sock` served by `webamend-slotd.socket`; each provisioned client is a member of `webamend-slots` and has `SLOT_BROKER_SOCKET=/run/webamend/slotd.sock` in its `.env`.
 
 - [ ] **Step 1: The units**
 
 ```ini
-# ops/slotd/systemd/lexi-slotd.socket
+# ops/slotd/systemd/webamend-slotd.socket
 [Unit]
-Description=Lexi host admission queue (socket)
-Documentation=file:///opt/lexi/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
+Description=Webamend host admission queue (socket)
+Documentation=file:///opt/webamend/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
 
 [Socket]
-ListenStream=/run/lexi/slotd.sock
+ListenStream=/run/webamend/slotd.sock
 # 0666 is deliberate: reachability is not authorization. The daemon identifies
 # every connection by SO_PEERCRED and refuses any uid that is not an enrolled
 # client. A rootless container's process does not carry its user's host group
@@ -2939,21 +2939,21 @@ WantedBy=sockets.target
 ```
 
 ```ini
-# ops/slotd/systemd/lexi-slotd.service
+# ops/slotd/systemd/webamend-slotd.service
 [Unit]
-Description=Lexi host admission queue
-Documentation=file:///opt/lexi/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
-Requires=lexi-slotd.socket
-After=lexi-slotd.socket
+Description=Webamend host admission queue
+Documentation=file:///opt/webamend/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
+Requires=webamend-slotd.socket
+After=webamend-slotd.socket
 
 [Service]
-ExecStart=/usr/bin/python3 /opt/lexi/src/ops/slotd/lexi_slotd.py
+ExecStart=/usr/bin/python3 /opt/webamend/src/ops/slotd/webamend_slotd.py
 # Every tunable, with its default and the measurement behind it, in
 # ops/slotd/slots.env.example. Absent file, spec defaults.
-EnvironmentFile=-/etc/lexi/slots.env
+EnvironmentFile=-/etc/webamend/slots.env
 DynamicUser=yes
 # The daemon needs to read the group's membership, nothing else.
-SupplementaryGroups=lexi-slots
+SupplementaryGroups=webamend-slots
 # The admission controller is the last thing that should die when memory is short.
 OOMScoreAdjust=-900
 Restart=on-failure
@@ -2966,8 +2966,8 @@ ExecReload=/bin/kill -HUP $MAINPID
 
 ```bash
 # ops/slotd/slots.env.example
-# Tunables for lexi-slotd, the host admission queue. Copy to /etc/lexi/slots.env
-# (root, 0644 — nothing here is secret) and `systemctl reload lexi-slotd`.
+# Tunables for webamend-slotd, the host admission queue. Copy to /etc/webamend/slots.env
+# (root, 0644 — nothing here is secret) and `systemctl reload webamend-slotd`.
 # Every default is what the daemon uses when this file is absent.
 #
 # Sizes take K, M, G. Measurements: docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
@@ -3009,7 +3009,7 @@ In `docker-compose.yml`, after the `WEBAGENT_STATE_DIR` volume line:
       # with the socket's name, while a missing directory is harmless and
       # lets the socket appear later. Same path both sides, like the state
       # dir, so SLOT_BROKER_SOCKET in .env is right on the host and in here.
-      - ${SLOT_BROKER_DIR:-/run/lexi}:/run/lexi
+      - ${SLOT_BROKER_DIR:-/run/webamend}:/run/webamend
 ```
 
 Run: `docker compose -f docker-compose.yml config --quiet 2>&1 | grep -v "variable is not set"; echo "exit ${PIPESTATUS[0]}"`
@@ -3021,22 +3021,22 @@ In `ops/bootstrap-host.sh`, after `install_monitoring()`:
 
 ```bash
 # The host admission queue: one daemon, socket-activated, unprivileged. The
-# `lexi-slots` group is both its authorization list and its client count;
+# `webamend-slots` group is both its authorization list and its client count;
 # provision-client.sh enrols each client. Python 3 is present on every
 # supported host image; the daemon is standard library only.
 install_slotd() {
-  command -v python3 >/dev/null || die "python3 is required for lexi-slotd; apt-get install -y python3"
-  getent group lexi-slots >/dev/null || groupadd --system lexi-slots
-  install -d -m 755 /run/lexi /etc/lexi
-  [ -f /etc/lexi/slots.env ] || install -m 644 "${SCRIPT_DIR}/slotd/slots.env.example" /etc/lexi/slots.env
+  command -v python3 >/dev/null || die "python3 is required for webamend-slotd; apt-get install -y python3"
+  getent group webamend-slots >/dev/null || groupadd --system webamend-slots
+  install -d -m 755 /run/webamend /etc/webamend
+  [ -f /etc/webamend/slots.env ] || install -m 644 "${SCRIPT_DIR}/slotd/slots.env.example" /etc/webamend/slots.env
   local unit
-  for unit in lexi-slotd.socket lexi-slotd.service; do
-    sed "s#/opt/lexi/src#${SCRIPT_DIR%/ops}#g" "${SCRIPT_DIR}/slotd/systemd/${unit}" \
+  for unit in webamend-slotd.socket webamend-slotd.service; do
+    sed "s#/opt/webamend/src#${SCRIPT_DIR%/ops}#g" "${SCRIPT_DIR}/slotd/systemd/${unit}" \
       >"/etc/systemd/system/${unit}"
   done
   systemctl daemon-reload
-  systemctl enable --now lexi-slotd.socket
-  note "lexi-slotd listening on /run/lexi/slotd.sock; capacity: python3 ${SCRIPT_DIR}/slotd/lexi_slotd.py status"
+  systemctl enable --now webamend-slotd.socket
+  note "webamend-slotd listening on /run/webamend/slotd.sock; capacity: python3 ${SCRIPT_DIR}/slotd/webamend_slotd.py status"
 }
 ```
 
@@ -3055,18 +3055,18 @@ Expected: `ok`
 In `ops/provision-client.sh`, after `enable_linger()`'s definition:
 
 ```bash
-# Membership of lexi-slots is what lets this client's uid take a slot from the
+# Membership of webamend-slots is what lets this client's uid take a slot from the
 # admission daemon, and what the daemon counts when it sizes capacity. The
 # reload recomputes capacity for the new count; harmless if the daemon is not
 # installed.
 enroll_in_slots() {
-  if ! getent group lexi-slots >/dev/null; then
-    note "lexi-slots group absent (host bootstrapped before the admission queue); skipping enrolment"
+  if ! getent group webamend-slots >/dev/null; then
+    note "webamend-slots group absent (host bootstrapped before the admission queue); skipping enrolment"
     return 0
   fi
-  usermod -aG lexi-slots "$SLUG" || die "could not add ${SLUG} to lexi-slots"
-  systemctl reload lexi-slotd.service 2>/dev/null || true
-  note "enrolled ${SLUG} in lexi-slots"
+  usermod -aG webamend-slots "$SLUG" || die "could not add ${SLUG} to webamend-slots"
+  systemctl reload webamend-slotd.service 2>/dev/null || true
+  note "enrolled ${SLUG} in webamend-slots"
 }
 ```
 
@@ -3084,8 +3084,8 @@ In `write_env_skeleton`'s heredoc, after the `DOCKER_SOCK` line:
 DOCKER_SOCK=/run/user/${uid}/docker.sock
 
 # The host admission queue. Same path on the host and in the container
-# (docker-compose.yml mounts /run/lexi). Remove the line to run without it.
-SLOT_BROKER_SOCKET=/run/lexi/slotd.sock
+# (docker-compose.yml mounts /run/webamend). Remove the line to run without it.
+SLOT_BROKER_SOCKET=/run/webamend/slotd.sock
 ```
 
 Run: `bash -n ops/provision-client.sh && echo ok`
@@ -3095,10 +3095,10 @@ Expected: `ok`
 
 ```bash
 git add ops/slotd/systemd ops/slotd/slots.env.example docker-compose.yml ops/bootstrap-host.sh ops/provision-client.sh
-git commit -m "ops: install lexi-slotd under systemd and enrol each client
+git commit -m "ops: install webamend-slotd under systemd and enrol each client
 
-Socket-activated, DynamicUser, OOMScoreAdjust -900. The lexi-slots group is
-the authorization list and the client count. Compose mounts /run/lexi.
+Socket-activated, DynamicUser, OOMScoreAdjust -900. The webamend-slots group is
+the authorization list and the client count. Compose mounts /run/webamend.
 
 docker-compose.yml carries a pre-existing uncommitted hunk unrelated to this
 change; it rides along here.
@@ -3120,30 +3120,30 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 - Modify: `ops/README.md`
 
 **Interfaces:**
-- Consumes: `python3 ops/slotd/lexi_slotd.py status --prom` (Task 4).
-- Produces: `lexi_slots_*` in the textfile collector; a `SLOTS` line in `ops/status.sh`.
+- Consumes: `python3 ops/slotd/webamend_slotd.py status --prom` (Task 4).
+- Produces: `webamend_slots_*` in the textfile collector; a `SLOTS` line in `ops/status.sh`.
 
 - [ ] **Step 1: probe.sh appends the daemon's metrics**
 
-In `ops/probe.sh`, after the block that appends `lexi_probe_last_success_timestamp_seconds` and before `chmod 644 "$tmp"`:
+In `ops/probe.sh`, after the block that appends `webamend_probe_last_success_timestamp_seconds` and before `chmod 644 "$tmp"`:
 
 ```bash
 # The admission daemon's own view. Absent socket: no lines, no failure — a
 # host without the daemon is not a broken host. A socket that does not answer
 # is a fault worth the line below, but still not a reason to publish nothing.
-if [ -S /run/lexi/slotd.sock ]; then
-  if ! python3 "${SCRIPT_DIR}/slotd/lexi_slotd.py" status --socket /run/lexi/slotd.sock --prom >>"$tmp" 2>/dev/null; then
-    echo "probe: lexi-slotd did not answer on /run/lexi/slotd.sock" >&2
+if [ -S /run/webamend/slotd.sock ]; then
+  if ! python3 "${SCRIPT_DIR}/slotd/webamend_slotd.py" status --socket /run/webamend/slotd.sock --prom >>"$tmp" 2>/dev/null; then
+    echo "probe: webamend-slotd did not answer on /run/webamend/slotd.sock" >&2
     {
-      echo '# HELP lexi_slots_up 1 when the admission daemon answered.'
-      echo '# TYPE lexi_slots_up gauge'
-      echo 'lexi_slots_up 0'
+      echo '# HELP webamend_slots_up 1 when the admission daemon answered.'
+      echo '# TYPE webamend_slots_up gauge'
+      echo 'webamend_slots_up 0'
     } >>"$tmp"
   else
     {
-      echo '# HELP lexi_slots_up 1 when the admission daemon answered.'
-      echo '# TYPE lexi_slots_up gauge'
-      echo 'lexi_slots_up 1'
+      echo '# HELP webamend_slots_up 1 when the admission daemon answered.'
+      echo '# TYPE webamend_slots_up gauge'
+      echo 'webamend_slots_up 1'
     } >>"$tmp"
   fi
 fi
@@ -3154,11 +3154,11 @@ fi
 In `ops/status.sh`, after the `TOTAL agent containers…` two `echo` lines:
 
 ```bash
-  if [ -S /run/lexi/slotd.sock ]; then
-    if slots_json="$(python3 "${SCRIPT_DIR}/slotd/lexi_slotd.py" status --socket /run/lexi/slotd.sock 2>/dev/null)"; then
+  if [ -S /run/webamend/slotd.sock ]; then
+    if slots_json="$(python3 "${SCRIPT_DIR}/slotd/webamend_slotd.py" status --socket /run/webamend/slotd.sock 2>/dev/null)"; then
       echo "SLOTS $(printf '%s' "$slots_json" | python3 -c 'import json,sys; s=json.load(sys.stdin); print(f"capacity {s[\"capacity\"]}, leased {s[\"leased\"]}, queued {s[\"queued\"]}, braked {\"yes\" if s[\"braked\"] else \"no\"}, refused {sum(s[\"refused\"].values())}")')"
     else
-      echo "SLOTS daemon socket present but not answering — systemctl status lexi-slotd"
+      echo "SLOTS daemon socket present but not answering — systemctl status webamend-slotd"
     fi
   else
     echo "SLOTS no admission daemon on this host (ops/bootstrap-host.sh installs it); ceiling is the client count above"
@@ -3175,24 +3175,24 @@ Expected: `ok`
 `ops/monitoring/grafana/alert-rules.md` — replace row A5 and add two rows after A5b:
 
 ```markdown
-| A5 | RAM vs agent ceiling | `node_memory_MemAvailable_bytes{project="lexi"} < (lexi_slots_capacity or lexi_clients_total) * 419430400` | 15m | The demand line is what the host admits at once (`lexi_slots_capacity`) times the measured ~400 MB per agent; before the daemon is installed it falls back to the client count, since each client can run one. `for: 15m` so a run finishing does not page. |
-| A5b | RAM hard floor | `node_memory_MemAvailable_bytes{project="lexi"} < 300e6` | 5m | The immediate form of A5. No swap on this box: this is an OOM countdown. |
-| A5c | Queue never drains | `lexi_slots_queued > 0` | 10m | Capacity pressure: demand exceeds what the host admits for ten straight minutes. Add RAM or another host; or the estimates in /etc/lexi/slots.env are too conservative. |
-| A5d | Requests turned away | `increase(lexi_slots_refused_total{reason="projected_wait_exceeds_ceiling"}[1h]) > 0` | instant | A client was told "busy" because the projected wait exceeded 15 minutes. The host is under-sized for its clients; A5c will already be firing. |
-| A5e | Admission daemon down | `lexi_slots_up == 0` | 5m | The app falls back to no host cap; protection is gone until the daemon answers. `systemctl status lexi-slotd`. |
+| A5 | RAM vs agent ceiling | `node_memory_MemAvailable_bytes{project="webamend"} < (webamend_slots_capacity or webamend_clients_total) * 419430400` | 15m | The demand line is what the host admits at once (`webamend_slots_capacity`) times the measured ~400 MB per agent; before the daemon is installed it falls back to the client count, since each client can run one. `for: 15m` so a run finishing does not page. |
+| A5b | RAM hard floor | `node_memory_MemAvailable_bytes{project="webamend"} < 300e6` | 5m | The immediate form of A5. No swap on this box: this is an OOM countdown. |
+| A5c | Queue never drains | `webamend_slots_queued > 0` | 10m | Capacity pressure: demand exceeds what the host admits for ten straight minutes. Add RAM or another host; or the estimates in /etc/webamend/slots.env are too conservative. |
+| A5d | Requests turned away | `increase(webamend_slots_refused_total{reason="projected_wait_exceeds_ceiling"}[1h]) > 0` | instant | A client was told "busy" because the projected wait exceeded 15 minutes. The host is under-sized for its clients; A5c will already be firing. |
+| A5e | Admission daemon down | `webamend_slots_up == 0` | 5m | The app falls back to no host cap; protection is gone until the daemon answers. `systemctl status webamend-slotd`. |
 ```
 
 `ops/monitoring/grafana/dashboard-health.json` — in panel id 5, replace target B's `expr` and `legendFormat`:
 
 ```json
-          "expr": "(lexi_slots_capacity{project=\"lexi\"} or lexi_clients_total{project=\"lexi\"}) * 419430400",
+          "expr": "(webamend_slots_capacity{project=\"webamend\"} or webamend_clients_total{project=\"webamend\"}) * 419430400",
           "legendFormat": "agent demand at capacity"
 ```
 
 and update its `description` to:
 
 ```json
-      "description": "No swap on this box. The demand line is what the admission daemon admits at once (lexi_slots_capacity; before it is installed, the client count) times the ~400 MB a measured agent run holds. When available crosses below it, the ceiling is wrong for this host.",
+      "description": "No swap on this box. The demand line is what the admission daemon admits at once (webamend_slots_capacity; before it is installed, the client count) times the ~400 MB a measured agent run holds. When available crosses below it, the ceiling is wrong for this host.",
 ```
 
 Run: `python3 -c "import json;json.load(open('ops/monitoring/grafana/dashboard-health.json'));print('ok')"`
@@ -3203,7 +3203,7 @@ Expected: `ok`
 `ops/MONITORING.md` — in the "What to look at" list, after the memory line, add:
 
 ```markdown
-- **`lexi_slots_queued` and `lexi_slots_refused_total`** — the admission queue's early warning. Queued for minutes means clients are waiting on each other; refused means one was told to come back later. Both say "more RAM or another host".
+- **`webamend_slots_queued` and `webamend_slots_refused_total`** — the admission queue's early warning. Queued for minutes means clients are waiting on each other; refused means one was told to come back later. Both say "more RAM or another host".
 ```
 
 `ops/README.md` — replace the section `### 2. The host's agent ceiling is the number of clients` with:
@@ -3212,19 +3212,19 @@ Expected: `ok`
 ### 2. The host admits agents through one queue
 
 Each installation serves one site, and its site lock bounds it to one run at a time. Across
-installations, `lexi-slotd` (`ops/slotd/`) decides how many agents run at once: a capacity
+installations, `webamend-slotd` (`ops/slotd/`) decides how many agents run at once: a capacity
 computed from the host's RAM and CPUs, a live check of available memory before every grant,
 FIFO order, and a lease that lasts exactly as long as the app's connection to it. Design and
 measurements: `docs/superpowers/specs/2026-09-14-host-admission-queue-design.md`.
 
 `ops/bootstrap-host.sh` installs it; `ops/provision-client.sh` enrols each client in the
-`lexi-slots` group (the daemon's authorization list and its client count) and writes
+`webamend-slots` group (the daemon's authorization list and its client count) and writes
 `SLOT_BROKER_SOCKET` into the client's `.env`. Remove that line and the installation runs
 without the queue, exactly as before — the app fails open if the daemon is unreachable.
 
-Tune it in `/etc/lexi/slots.env` (`ops/slotd/slots.env.example` explains every number), then
-`systemctl reload lexi-slotd`. Read it with `python3 ops/slotd/lexi_slotd.py status`, in the
-`SLOTS` line of `ops/status.sh`, and as `lexi_slots_*` in monitoring.
+Tune it in `/etc/webamend/slots.env` (`ops/slotd/slots.env.example` explains every number), then
+`systemctl reload webamend-slotd`. Read it with `python3 ops/slotd/webamend_slotd.py status`, in the
+`SLOTS` line of `ops/status.sh`, and as `webamend_slots_*` in monitoring.
 
 Budget roughly **400 MB of RAM per running agent** (measured 2026-09-14), on top of one app
 container (~160 MB) per client. On a 3.8 GB, 2 vCPU host that is a capacity of 4, whatever the
@@ -3241,7 +3241,7 @@ Expected: all clean and green.
 
 ```bash
 git add ops/probe.sh ops/status.sh ops/monitoring/grafana/alert-rules.md ops/monitoring/grafana/dashboard-health.json ops/MONITORING.md ops/README.md
-git commit -m "ops: lexi_slots_* metrics, SLOTS status line, alerts and docs for the admission queue
+git commit -m "ops: webamend_slots_* metrics, SLOTS status line, alerts and docs for the admission queue
 
 ops/status.sh and ops/README.md carry pre-existing uncommitted hunks
 unrelated to this change; they ride along here.
@@ -3256,16 +3256,16 @@ Claude-Session: https://claude.ai/code/session_01NE8JfZUuxbvYCbLd8YfYTG"
 
 Per the spec's Rollout section, after the branch is merged and released:
 
-1. `cd /opt/prosel/src && bash ops/bootstrap-host.sh` (idempotent; installs the daemon), then `python3 ops/slotd/lexi_slotd.py status` — expect `"capacity": 4`.
-2. For each existing client: `usermod -aG lexi-slots <slug>`, add `SLOT_BROKER_SOCKET=/run/lexi/slotd.sock` to `/srv/lexi/<slug>/.env`, `systemctl reload lexi-slotd`, recreate the app container.
-3. Run one change on one client; confirm a `slotd.granted` line in `journalctl -u lexi-slotd` with that client's name from `SO_PEERCRED`.
-4. Re-run the 2026-09-14 stress procedure **through the app** (not `docker run` directly) and confirm `lexi_slots_leased` never exceeds 4 and `MemAvailable` never approaches zero.
+1. `cd /opt/webamend/src && bash ops/bootstrap-host.sh` (idempotent; installs the daemon), then `python3 ops/slotd/webamend_slotd.py status` — expect `"capacity": 4`.
+2. For each existing client: `usermod -aG webamend-slots <slug>`, add `SLOT_BROKER_SOCKET=/run/webamend/slotd.sock` to `/srv/webamend/<slug>/.env`, `systemctl reload webamend-slotd`, recreate the app container.
+3. Run one change on one client; confirm a `slotd.granted` line in `journalctl -u webamend-slotd` with that client's name from `SO_PEERCRED`.
+4. Re-run the 2026-09-14 stress procedure **through the app** (not `docker run` directly) and confirm `webamend_slots_leased` never exceeds 4 and `MemAvailable` never approaches zero.
 
 ---
 
 ## Self-review
 
-**Spec coverage.** Capacity formula → Task 1. Platform/identity/`SO_PEERCRED`/subuid → Task 2, Task 4. FIFO, one lease per client, brake, early refusal, ring, status → Task 3, Task 4. Protocol incl. `memoryBytes` in the grant → Task 4, Task 8. `SlotOutcome.release`, release in `finally`, refusal reason in `errorDetail`, client copy unchanged → Task 6. `Memory`/`MemorySwap`/`CpuShares` → Task 7. `createLeaseSlots` with fail-open → Task 8. `SLOT_BROKER_SOCKET` and wiring → Task 9. systemd (`DynamicUser`, `OOMScoreAdjust`), Compose mount, enrolment, `SIGHUP` → Task 10. `lexi_slots_*`, alerts, `SLOTS` line, docs → Task 11. Local stress test in a budget → Task 5. Two deliberate deviations from the spec are recorded in Global Constraints (socket mode `0666`; directory mount).
+**Spec coverage.** Capacity formula → Task 1. Platform/identity/`SO_PEERCRED`/subuid → Task 2, Task 4. FIFO, one lease per client, brake, early refusal, ring, status → Task 3, Task 4. Protocol incl. `memoryBytes` in the grant → Task 4, Task 8. `SlotOutcome.release`, release in `finally`, refusal reason in `errorDetail`, client copy unchanged → Task 6. `Memory`/`MemorySwap`/`CpuShares` → Task 7. `createLeaseSlots` with fail-open → Task 8. `SLOT_BROKER_SOCKET` and wiring → Task 9. systemd (`DynamicUser`, `OOMScoreAdjust`), Compose mount, enrolment, `SIGHUP` → Task 10. `webamend_slots_*`, alerts, `SLOTS` line, docs → Task 11. Local stress test in a budget → Task 5. Two deliberate deviations from the spec are recorded in Global Constraints (socket mode `0666`; directory mount).
 
 **Placeholder scan.** None. Every step has its code.
 

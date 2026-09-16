@@ -15,7 +15,7 @@ set -euo pipefail
 #   compromise buys user A's authority: A's own .env, A's own state, and
 #   nothing of B's — B's directory is 0700 and owned by B.
 #
-#   /srv/lexi/<slug>/            0700 <slug>:<slug>
+#   /srv/webamend/<slug>/            0700 <slug>:<slug>
 #     .env                         0600 <slug>:<slug>   secrets, filled by hand
 #     docker-compose.yml           0600 <slug>:<slug>   copied from the repo
 #     state/                       0700 <slug>:<slug>   WEBAGENT_STATE_DIR
@@ -38,7 +38,7 @@ usage() {
 Usage: ops/provision-client.sh <slug> <hostname> <port> [--force] [--registry-port <port>]
 
 Creates one client installation: a Linux user with its own rootless Docker
-daemon, /srv/lexi/<slug>/ at mode 0700, and a .env skeleton. Run as root.
+daemon, /srv/webamend/<slug>/ at mode 0700, and a .env skeleton. Run as root.
 
 Arguments:
   <slug>      Client identifier. Becomes the Linux user name and the directory
@@ -62,7 +62,7 @@ Example:
 USAGE
 }
 
-CLIENT_ROOT=/srv/lexi
+CLIENT_ROOT=/srv/webamend
 REGISTRY_PORT=5000
 FORCE=0
 SLUG=""
@@ -203,18 +203,18 @@ create_user() {
     die "no subordinate GID range for ${SLUG} in /etc/subgid. Allocate one, e.g.: usermod --add-subuids 100000-165535 --add-subgids 100000-165535 ${SLUG}"
 }
 
-# Membership of lexi-slots is what lets this client's uid take a slot from the
+# Membership of webamend-slots is what lets this client's uid take a slot from the
 # admission daemon, and what the daemon counts when it sizes capacity. The
 # reload recomputes capacity for the new count; harmless if the daemon is not
 # installed.
 enroll_in_slots() {
-  if ! getent group lexi-slots >/dev/null; then
-    note "lexi-slots group absent (host bootstrapped before the admission queue); skipping enrolment"
+  if ! getent group webamend-slots >/dev/null; then
+    note "webamend-slots group absent (host bootstrapped before the admission queue); skipping enrolment"
     return 0
   fi
-  usermod -aG lexi-slots "$SLUG" || die "could not add ${SLUG} to lexi-slots"
-  systemctl reload lexi-slotd.service 2>/dev/null || true
-  note "enrolled ${SLUG} in lexi-slots"
+  usermod -aG webamend-slots "$SLUG" || die "could not add ${SLUG} to webamend-slots"
+  systemctl reload webamend-slotd.service 2>/dev/null || true
+  note "enrolled ${SLUG} in webamend-slots"
 }
 
 # Without linger, /run/user/<uid> and the user's systemd instance exist only
@@ -346,14 +346,14 @@ WEBAGENT_STATE_DIR=${CLIENT_ROOT}/${SLUG}/state
 DOCKER_SOCK=/run/user/${uid}/docker.sock
 
 # The host admission queue. Same path on the host and in the container
-# (docker-compose.yml mounts /run/lexi). Remove the line to run without it.
-SLOT_BROKER_SOCKET=/run/lexi/slotd.sock
+# (docker-compose.yml mounts /run/webamend). Remove the line to run without it.
+SLOT_BROKER_SOCKET=/run/webamend/slotd.sock
 
 # Loopback port the reverse proxy forwards to. Unique per client on this host.
 PORT_HOST=${PORT}
 
 # Set by ops/release.sh on every roll-forward. Leave them alone by hand.
-APP_IMAGE=127.0.0.1:${REGISTRY_PORT}/lexi/app:bootstrap
+APP_IMAGE=127.0.0.1:${REGISTRY_PORT}/webamend/app:bootstrap
 AGENT_IMAGE=127.0.0.1:${REGISTRY_PORT}/webagent/agent:bootstrap
 
 # --- Fill these in by hand --------------------------------------------------

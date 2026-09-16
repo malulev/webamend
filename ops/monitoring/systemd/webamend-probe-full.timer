@@ -5,7 +5,7 @@ Description=Collect per-client disk usage every 15 minutes
 OnBootSec=5min
 OnUnitActiveSec=15min
 RandomizedDelaySec=60s
-Unit=lexi-probe-full.service
+Unit=webamend-probe-full.service
 
 [Install]
 WantedBy=timers.target

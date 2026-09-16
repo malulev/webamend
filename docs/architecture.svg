@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" role="img" aria-label="Lexi architecture: the client's browser talks to the Lexi app; the app locks the repository on GitHub, runs an isolated agent container that edits a working tree, gates the result, pushes a branch, waits for a Netlify preview, and merges only when the client presses Publish.">
-  <title>Lexi architecture</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 620" width="1200" height="620" role="img" aria-label="Webamend architecture: the client's browser talks to the Webamend app; the app locks the repository on GitHub, runs an isolated agent container that edits a working tree, gates the result, pushes a branch, waits for a Netlify preview, and merges only when the client presses Publish.">
+  <title>Webamend architecture</title>
   <style>
     .sans { font-family: ui-sans-serif, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
     .h   { font-size: 16px; font-weight: 700; fill: #1F2328; }
@@ -33,7 +33,7 @@
 
   <!-- Installation zone -->
   <rect x="320" y="60" width="520" height="500" rx="6" class="zone"/>
-  <text x="340" y="86" class="sans zl">LEXI INSTALLATION · ONE SITE</text>
+  <text x="340" y="86" class="sans zl">WEBAMEND INSTALLATION · ONE SITE</text>
 
   <!-- Client -->
   <rect x="50" y="200" width="200" height="90" rx="5" class="box"/>
@@ -42,7 +42,7 @@
 
   <!-- App -->
   <rect x="360" y="180" width="240" height="120" rx="5" class="box"/>
-  <text x="380" y="212" class="sans h">Lexi app</text>
+  <text x="380" y="212" class="sans h">Webamend app</text>
   <text x="380" y="236" class="sans s">one Next.js process</text>
   <text x="380" y="256" class="sans s">holds every credential</text>
   <text x="380" y="276" class="sans s">no database</text>

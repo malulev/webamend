@@ -243,10 +243,10 @@ describe('isUsableTotpSecret', () => {
 
 describe('otpauthUri', () => {
   it('names the issuer and account and carries the secret', () => {
-    const uri = otpauthUri(buildEnv(), 'Lexi', 'edit.client.example');
-    expect(uri.startsWith('otpauth://totp/Lexi:edit.client.example?')).toBe(true);
+    const uri = otpauthUri(buildEnv(), 'Webamend', 'edit.client.example');
+    expect(uri.startsWith('otpauth://totp/Webamend:edit.client.example?')).toBe(true);
     expect(uri).toContain(`secret=${SECRET}`);
-    expect(uri).toContain('issuer=Lexi');
+    expect(uri).toContain('issuer=Webamend');
   });
 });
 ```
@@ -1417,11 +1417,11 @@ git push
 - [ ] **Step 3: On the VPS (operator, as root)**
 
 ```bash
-cd /opt/prosel/src && git pull
-sudo -u malulev sed -i 's/^CONFIG_TOTP_SECRET=/TOTP_SECRET=/' /srv/lexi/malulev/.env
-sudo -u malulev sed -i '/^CONFIG_PASSWORD_HASH=/d' /srv/lexi/malulev/.env
+cd /opt/webamend/src && git pull
+sudo -u malulev sed -i 's/^CONFIG_TOTP_SECRET=/TOTP_SECRET=/' /srv/webamend/malulev/.env
+sudo -u malulev sed -i '/^CONFIG_PASSWORD_HASH=/d' /srv/webamend/malulev/.env
 ops/release.sh --client malulev
-docker run --rm -v /opt/prosel/src:/src:ro -v /srv/lexi/malulev/.env:/secret/.env:ro -w /build node:22-slim \
+docker run --rm -v /opt/webamend/src:/src:ro -v /srv/webamend/malulev/.env:/secret/.env:ro -w /build node:22-slim \
   sh -c 'cp -a /src/. /build && cp /secret/.env /build/.env && npm ci --silent && npm run --silent enroll:link'
 ```
 

@@ -19,7 +19,7 @@
 
 /**
  * Every agent container carries this label. `ops/status.sh` counts running
- * containers by it for the host's `lexi_agents_running_total` metric, and a
+ * containers by it for the host's `webamend_agents_running_total` metric, and a
  * developer reading `docker ps` can tell an agent from anything else.
  */
 export const AGENT_LABEL = 'webagent.agent';

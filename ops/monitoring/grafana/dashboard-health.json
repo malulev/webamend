@@ -1,8 +1,8 @@
 {
-  "title": "Lexi \u2014 health",
-  "uid": "lexi-health",
+  "title": "Webamend \u2014 health",
+  "uid": "webamend-health",
   "tags": [
-    "lexi"
+    "webamend"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -23,7 +23,7 @@
           "type": "prometheus",
           "uid": "${prom}"
         },
-        "query": "label_values(lexi_client_app_up{project=\"lexi\"}, slug)",
+        "query": "label_values(webamend_client_app_up{project=\"webamend\"}, slug)",
         "refresh": 2,
         "current": {
           "selected": true,
@@ -73,7 +73,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "lexi_client_health_ok{project=\"lexi\", slug=~\"$slug\"}",
+          "expr": "webamend_client_health_ok{project=\"webamend\", slug=~\"$slug\"}",
           "legendFormat": "{{slug}}",
           "instant": true
         }
@@ -137,7 +137,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "lexi_client_ready_ok{project=\"lexi\", slug=~\"$slug\"}",
+          "expr": "webamend_client_ready_ok{project=\"webamend\", slug=~\"$slug\"}",
           "legendFormat": "{{slug}}",
           "instant": true
         }
@@ -187,7 +187,7 @@
       "type": "stat",
       "title": "Release in progress",
       "id": 3,
-      "description": "ops/release.sh touches /var/lib/lexi/maintenance. Red panels above are expected while this is 1.",
+      "description": "ops/release.sh touches /var/lib/webamend/maintenance. Red panels above are expected while this is 1.",
       "gridPos": {
         "h": 5,
         "w": 6,
@@ -201,7 +201,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "lexi_maintenance{project=\"lexi\"}",
+          "expr": "webamend_maintenance{project=\"webamend\"}",
           "instant": true
         }
       ],
@@ -251,7 +251,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "time() - lexi_probe_last_success_timestamp_seconds{project=\"lexi\"}",
+          "expr": "time() - webamend_probe_last_success_timestamp_seconds{project=\"webamend\"}",
           "instant": true
         }
       ],
@@ -288,7 +288,7 @@
       "type": "timeseries",
       "title": "Memory available vs projected agent demand",
       "id": 5,
-      "description": "No swap on this box. The demand line is what the admission daemon admits at once (lexi_slots_capacity; before it is installed, the client count) times the ~400 MB a measured agent run holds. When available crosses below it, the ceiling is wrong for this host.",
+      "description": "No swap on this box. The demand line is what the admission daemon admits at once (webamend_slots_capacity; before it is installed, the client count) times the ~400 MB a measured agent run holds. When available crosses below it, the ceiling is wrong for this host.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -302,12 +302,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "node_memory_MemAvailable_bytes{project=\"lexi\"}",
+          "expr": "node_memory_MemAvailable_bytes{project=\"webamend\"}",
           "legendFormat": "available"
         },
         {
           "refId": "B",
-          "expr": "(lexi_slots_capacity{project=\"lexi\"} or lexi_clients_total{project=\"lexi\"}) * 419430400",
+          "expr": "(webamend_slots_capacity{project=\"webamend\"} or webamend_clients_total{project=\"webamend\"}) * 419430400",
           "legendFormat": "agent demand at capacity"
         }
       ],
@@ -338,7 +338,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "1 - node_filesystem_avail_bytes{project=\"lexi\", mountpoint=\"/\"} / node_filesystem_size_bytes{project=\"lexi\", mountpoint=\"/\"}",
+          "expr": "1 - node_filesystem_avail_bytes{project=\"webamend\", mountpoint=\"/\"} / node_filesystem_size_bytes{project=\"webamend\", mountpoint=\"/\"}",
           "instant": true
         }
       ],
@@ -385,17 +385,17 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "node_load1{project=\"lexi\"}",
+          "expr": "node_load1{project=\"webamend\"}",
           "legendFormat": "1m"
         },
         {
           "refId": "B",
-          "expr": "node_load15{project=\"lexi\"}",
+          "expr": "node_load15{project=\"webamend\"}",
           "legendFormat": "15m"
         },
         {
           "refId": "C",
-          "expr": "count(count by (cpu) (node_cpu_seconds_total{project=\"lexi\"}))",
+          "expr": "count(count by (cpu) (node_cpu_seconds_total{project=\"webamend\"}))",
           "legendFormat": "cores"
         }
       ],
@@ -426,7 +426,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "lexi_client_agents_running{project=\"lexi\", slug=~\"$slug\"}",
+          "expr": "webamend_client_agents_running{project=\"webamend\", slug=~\"$slug\"}",
           "legendFormat": "{{slug}} running"
         }
       ],
@@ -459,7 +459,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "lexi_client_info{project=\"lexi\", slug=~\"$slug\"}",
+          "expr": "webamend_client_info{project=\"webamend\", slug=~\"$slug\"}",
           "instant": true,
           "format": "table"
         }
@@ -497,7 +497,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"lexi\", project=\"lexi\", slug=~\"$slug\", level=~\"error|warn\"}"
+          "expr": "{job=\"webamend\", project=\"webamend\", slug=~\"$slug\", level=~\"error|warn\"}"
         }
       ],
       "options": {

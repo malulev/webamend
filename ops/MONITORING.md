@@ -1,4 +1,4 @@
-# Monitoring a Lexi host
+# Monitoring a Webamend host
 
 What this host reports about itself, how to turn it on, and in what order.
 
@@ -18,19 +18,19 @@ dies*. Do this even if you do nothing else.
    a fresh host, so on one of those only the last two lines are needed:
 
    ```bash
-   /opt/prosel/src/ops/install-monitoring.sh   # idempotent; skip if bootstrap ran it
-   $EDITOR /etc/lexi/monitoring.env            # paste HEARTBEAT_URL
-   systemctl restart lexi-probe.timer
+   /opt/webamend/src/ops/install-monitoring.sh   # idempotent; skip if bootstrap ran it
+   $EDITOR /etc/webamend/monitoring.env            # paste HEARTBEAT_URL
+   systemctl restart webamend-probe.timer
    ```
 
-3. Prove it: `systemctl stop lexi-probe.timer`, wait for the grace to expire,
-   confirm the email arrives, then **`systemctl start lexi-probe.timer`**.
+3. Prove it: `systemctl stop webamend-probe.timer`, wait for the grace to expire,
+   confirm the email arrives, then **`systemctl start webamend-probe.timer`**.
    **An alert never tested is an alert that does not exist.**
 
    The test only means something once `HEARTBEAT_URL` is filled in *and* the
    check has already received at least one ping — an empty URL makes `probe.sh`
    skip the ping entirely, so there is nothing to go silent. Only the 60-second
-   run pings; `lexi-probe-full.timer` deliberately does not, so stopping the one
+   run pings; `webamend-probe-full.timer` deliberately does not, so stopping the one
    timer is enough.
 
 The ping is conditional — `ops/probe.sh` only pings when `ops/status.sh
@@ -42,17 +42,17 @@ proves only that the timer runs.
 1. Sign up. From Connections, take the Prometheus push URL and user id, the
    Loki push URL and user id, and one access policy token with `metrics:write`
    and `logs:write`.
-2. Fill them into `/etc/lexi/monitoring.env`. Names only ever appear in
+2. Fill them into `/etc/webamend/monitoring.env`. Names only ever appear in
    output; no value is printed by any script here.
 3. Install Alloy, then re-run the installer:
 
    ```bash
    # Grafana's install script, from their docs — pinned by your own package
    # manager, not by this file.
-   /opt/prosel/src/ops/install-monitoring.sh --with-alloy
+   /opt/webamend/src/ops/install-monitoring.sh --with-alloy
    ```
 
-4. Confirm: `systemctl status alloy`, then look for `lexi_clients_total`
+4. Confirm: `systemctl status alloy`, then look for `webamend_clients_total`
    in Grafana's metrics explorer.
 
 ## Phase 3 — alerts
@@ -84,12 +84,12 @@ queries. The short version:
   `ops/status.sh <slug> --logs` for one client's JSON log,
   `journalctl -u caddy` for the proxy's own service log (access logs are off
   — see the table above), and
-  `/var/lib/node_exporter/textfile/lexi.prom` for what the collector reads.
+  `/var/lib/node_exporter/textfile/webamend.prom` for what the collector reads.
 - **Per request:** the durable record is a comment on the pull request in the
   client's repository — outcome, cost, tokens, per-stage timestamps, and the
   agent's last output lines, which exist nowhere else by design.
-- **In Grafana:** Explore → Loki for `{job="lexi"}`, Explore → Prometheus for
-  `lexi_*` and `node_*`, Alerting → Alert rules for what is firing.
+- **In Grafana:** Explore → Loki for `{job="webamend"}`, Explore → Prometheus for
+  `webamend_*` and `node_*`, Alerting → Alert rules for what is firing.
 - **Dashboards:** import `monitoring/grafana/dashboard-health.json` (is it up,
   per client, right now) and `monitoring/grafana/dashboard-requests.json` (did
   the requests work, why were they slow, what did they cost). Dashboards → New
@@ -103,13 +103,13 @@ queries. The short version:
 - **Spend per client per day** — the aggregate the per-request ceiling cannot see.
 - **Publish rate** — previews the client chose *not* to ship. The product-quality metric.
 - **Undo count** — they published, then rejected it. Worse than a preview never published.
-- **Memory available vs `lexi_slots_capacity × 400 MB`** (before the daemon is installed, `lexi_clients_total`) — what the host admits at once against what it has; this is how you find out the ceiling is wrong before the kernel decides.
-- **`lexi_slots_queued` and `lexi_slots_refused_total`** — the admission queue's early warning. Queued for minutes means clients are waiting on each other; refused means one was told to come back later. Both say "more RAM or another host".
+- **Memory available vs `webamend_slots_capacity × 400 MB`** (before the daemon is installed, `webamend_clients_total`) — what the host admits at once against what it has; this is how you find out the ceiling is wrong before the kernel decides.
+- **`webamend_slots_queued` and `webamend_slots_refused_total`** — the admission queue's early warning. Queued for minutes means clients are waiting on each other; refused means one was told to come back later. Both say "more RAM or another host".
 
 ## Constraints worth knowing before you extend it
 
 - **Label discipline.** Only `project`, `job`, `slug`, `unit`, `level`, `event`
-  and `stream` may be labels. `project="lexi"` is stamped on every metric
+  and `stream` may be labels. `project="webamend"` is stamped on every metric
   (`external_labels`) and every log line, so one Grafana Cloud stack — the free
   tier allows exactly one — can hold several projects without `node_*` metrics
   or journald logs from different hosts mixing together. `requestId`, `conversationNumber`, `commitSha` are unbounded
@@ -126,7 +126,7 @@ queries. The short version:
   Alloy the process the kernel kills rather than Caddy or a client's app.
   `ops/bootstrap-host.sh` also creates a swapfile, which turns an overshoot into
   slowness instead of a kill — check `swapon --show` on an older host.
-- **Secrets** live in `/etc/lexi/monitoring.env`, 0600 root — never in a client
+- **Secrets** live in `/etc/webamend/monitoring.env`, 0600 root — never in a client
   `.env`, because a client user can read their own and these tokens are
   host-wide authority.
 
@@ -136,7 +136,7 @@ queries. The short version:
   defaults to 0 when absent. Nothing here can detect spend the agent
   under-reports. The ground truth is OpenRouter's own API; a monthly
   reconciliation is not yet built.
-- `lexi_client_agents_running` is a poll, so a run finishing between two
+- `webamend_client_agents_running` is a poll, so a run finishing between two
   scrapes shows as a brief dip or spike rather than a fault. That is why A5
   carries a 15-minute window.
 - Grafana Cloud's free allowances and retention change. Verify them against

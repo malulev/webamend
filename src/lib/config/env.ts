@@ -82,7 +82,7 @@ const rawEnvSchema = z.object({
   PUBLIC_BASE_URL: z.url({ message: 'must be a valid absolute URL' }),
   /**
    * The host admission daemon's socket, as seen from inside the container
-   * (docker-compose.yml mounts /run/lexi at the same path). Unset means no
+   * (docker-compose.yml mounts /run/webamend at the same path). Unset means no
    * host-wide queue: a development machine, or a host not yet upgraded.
    */
   SLOT_BROKER_SOCKET: z.string().min(1, 'must be a socket path when set').optional(),

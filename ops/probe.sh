@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Writes the Lexi-specific metrics a generic exporter cannot know, for
+# Writes the Webamend-specific metrics a generic exporter cannot know, for
 # node_exporter's textfile collector, and pings the dead-man's switch.
 #
 # Everything it reports comes from `ops/status.sh --prom`, so there is exactly
@@ -22,7 +22,7 @@ usage() {
   cat <<'USAGE'
 Usage: ops/probe.sh [--full] [--textfile-dir <dir>]
 
-Writes <dir>/lexi.prom from ops/status.sh --prom, then pings HEARTBEAT_URL if
+Writes <dir>/webamend.prom from ops/status.sh --prom, then pings HEARTBEAT_URL if
 every client is healthy. Run as root, from a systemd timer.
 
   --full                 Include per-client disk usage (a du over each git
@@ -31,7 +31,7 @@ every client is healthy. Run as root, from a systemd timer.
 
 Environment:
   HEARTBEAT_URL  Dead-man's-switch ping URL. Only the run without --full pings,
-                 so stopping the 60s timer is enough to make the check go red. Kept in /etc/lexi/monitoring.env,
+                 so stopping the 60s timer is enough to make the check go red. Kept in /etc/webamend/monitoring.env,
                  0600 root — never in a client .env, because a client user can
                  read their own and this token is host-wide.
 USAGE
@@ -53,7 +53,7 @@ mkdir -p "$TEXTFILE_DIR"
 # Atomically, and this is not fussiness: node_exporter reads whatever is in
 # the file when its scrape lands, so writing in place produces half-parsed
 # scrapes and gaps that look like an outage.
-tmp="$(mktemp "${TEXTFILE_DIR}/lexi.prom.XXXXXX")"
+tmp="$(mktemp "${TEXTFILE_DIR}/webamend.prom.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 started="$(date +%s.%N)"
@@ -68,32 +68,32 @@ if ! "${SCRIPT_DIR}/status.sh" "${prom_args[@]}" >"$tmp" 2>/dev/null; then
 fi
 
 {
-  echo '# HELP lexi_probe_duration_seconds How long this collection took.'
-  echo '# TYPE lexi_probe_duration_seconds gauge'
-  echo "lexi_probe_duration_seconds $(echo "$(date +%s.%N) - ${started}" | bc)"
-  echo '# HELP lexi_probe_last_success_timestamp_seconds When this last completed.'
-  echo '# TYPE lexi_probe_last_success_timestamp_seconds gauge'
-  echo "lexi_probe_last_success_timestamp_seconds $(date +%s)"
+  echo '# HELP webamend_probe_duration_seconds How long this collection took.'
+  echo '# TYPE webamend_probe_duration_seconds gauge'
+  echo "webamend_probe_duration_seconds $(echo "$(date +%s.%N) - ${started}" | bc)"
+  echo '# HELP webamend_probe_last_success_timestamp_seconds When this last completed.'
+  echo '# TYPE webamend_probe_last_success_timestamp_seconds gauge'
+  echo "webamend_probe_last_success_timestamp_seconds $(date +%s)"
 } >>"$tmp"
 
 # The admission daemon's own view. Absent socket: no lines, no failure — a
 # host without the daemon is not a broken host. A socket that does not answer
 # is a fault worth the line below, but still not a reason to publish nothing.
-if [ -S /run/lexi/slotd.sock ]; then
+if [ -S /run/webamend/slotd.sock ]; then
   {
-    echo '# HELP lexi_slots_up 1 when the admission daemon answered.'
-    echo '# TYPE lexi_slots_up gauge'
+    echo '# HELP webamend_slots_up 1 when the admission daemon answered.'
+    echo '# TYPE webamend_slots_up gauge'
   } >>"$tmp"
-  if python3 "${SCRIPT_DIR}/slotd/lexi_slotd.py" status --socket /run/lexi/slotd.sock --prom >>"$tmp" 2>/dev/null; then
-    echo 'lexi_slots_up 1' >>"$tmp"
+  if python3 "${SCRIPT_DIR}/slotd/webamend_slotd.py" status --socket /run/webamend/slotd.sock --prom >>"$tmp" 2>/dev/null; then
+    echo 'webamend_slots_up 1' >>"$tmp"
   else
-    echo "probe: lexi-slotd did not answer on /run/lexi/slotd.sock" >&2
-    echo 'lexi_slots_up 0' >>"$tmp"
+    echo "probe: webamend-slotd did not answer on /run/webamend/slotd.sock" >&2
+    echo 'webamend_slots_up 0' >>"$tmp"
   fi
 fi
 
 chmod 644 "$tmp"
-mv -- "$tmp" "${TEXTFILE_DIR}/lexi.prom"
+mv -- "$tmp" "${TEXTFILE_DIR}/webamend.prom"
 trap - EXIT
 
 # The heartbeat is conditional twice over, and both conditions matter.

@@ -3,7 +3,7 @@ import { log } from '@/lib/log';
 import type { AgentSlots, SlotOutcome } from './slots';
 
 /**
- * The app's side of the host admission queue (ops/slotd/lexi_slotd.py; design
+ * The app's side of the host admission queue (ops/slotd/webamend_slotd.py; design
  * in docs/superpowers/specs/2026-09-14-host-admission-queue-design.md).
  *
  * One connection per request. `acquire` is sent, the daemon answers `queued`

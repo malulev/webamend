@@ -25,7 +25,7 @@ usage() {
   cat <<'USAGE'
 Usage: ops/status.sh [<slug>] [--logs] [--tail <lines>]
 
-Reports, for every client installation under /srv/lexi (or just <slug>):
+Reports, for every client installation under /srv/webamend (or just <slug>):
 whether its rootless daemon is up, whether its app container is running,
 whether its loopback port answers HTTP, how many agent containers are running
 on its daemon, and which image tag is deployed. Ends with the host-wide agent
@@ -51,7 +51,7 @@ Options:
 USAGE
 }
 
-CLIENT_ROOT=/srv/lexi
+CLIENT_ROOT=/srv/webamend
 ONLY_CLIENT=""
 SHOW_LOGS=0
 QUIET=0
@@ -128,7 +128,7 @@ parse_args() {
 
 require_root() {
   # Not vanity: reading each client's daemon means becoming each client, and
-  # /srv/lexi/<slug> is 0700 for exactly the reason that nobody else can.
+  # /srv/webamend/<slug> is 0700 for exactly the reason that nobody else can.
   [ "$(id -u)" -eq 0 ] || die "must run as root (it reads every client's 0700 directory and daemon). Try: sudo $0"
 }
 
@@ -263,7 +263,7 @@ print_logs() {
 # — so quoting them is the whole escaping problem.
 # Prometheus text format. Written from the same rows as everything else.
 #
-# `lexi_clients_total` is the line this whole file exists to produce: each
+# `webamend_clients_total` is the line this whole file exists to produce: each
 # client can run one agent at a time and nothing in the product can see across
 # clients, so the number of clients IS the host's agent ceiling, and that
 # ceiling against the host's actual memory is a number only this script can
@@ -276,59 +276,59 @@ print_logs() {
 emit_prom() {
   local row slug daemon app http ready agents image running healthy state_bytes
 
-  echo '# HELP lexi_client_app_up The client application container is running.'
-  echo '# TYPE lexi_client_app_up gauge'
+  echo '# HELP webamend_client_app_up The client application container is running.'
+  echo '# TYPE webamend_client_app_up gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     app="$(printf '%s' "$row" | cut -f3)"
-    [ "$app" = "running" ] && echo "lexi_client_app_up{slug=\"${slug}\"} 1" || echo "lexi_client_app_up{slug=\"${slug}\"} 0"
+    [ "$app" = "running" ] && echo "webamend_client_app_up{slug=\"${slug}\"} 1" || echo "webamend_client_app_up{slug=\"${slug}\"} 0"
   done
 
-  echo '# HELP lexi_client_daemon_up The client rootless Docker daemon answers.'
-  echo '# TYPE lexi_client_daemon_up gauge'
+  echo '# HELP webamend_client_daemon_up The client rootless Docker daemon answers.'
+  echo '# TYPE webamend_client_daemon_up gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     daemon="$(printf '%s' "$row" | cut -f2)"
-    [ "$daemon" = "up" ] && echo "lexi_client_daemon_up{slug=\"${slug}\"} 1" || echo "lexi_client_daemon_up{slug=\"${slug}\"} 0"
+    [ "$daemon" = "up" ] && echo "webamend_client_daemon_up{slug=\"${slug}\"} 1" || echo "webamend_client_daemon_up{slug=\"${slug}\"} 0"
   done
 
-  echo '# HELP lexi_client_health_ok The liveness route answers 200.'
-  echo '# TYPE lexi_client_health_ok gauge'
-  echo '# HELP lexi_client_ready_ok The installation can still reach everything it needs.'
-  echo '# TYPE lexi_client_ready_ok gauge'
+  echo '# HELP webamend_client_health_ok The liveness route answers 200.'
+  echo '# TYPE webamend_client_health_ok gauge'
+  echo '# HELP webamend_client_ready_ok The installation can still reach everything it needs.'
+  echo '# TYPE webamend_client_ready_ok gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     http="$(printf '%s' "$row" | cut -f4)"
     ready="$(printf '%s' "$row" | cut -f5)"
-    case "$http" in *' ok') echo "lexi_client_health_ok{slug=\"${slug}\"} 1" ;; *) echo "lexi_client_health_ok{slug=\"${slug}\"} 0" ;; esac
+    case "$http" in *' ok') echo "webamend_client_health_ok{slug=\"${slug}\"} 1" ;; *) echo "webamend_client_health_ok{slug=\"${slug}\"} 0" ;; esac
     case "$ready" in
-      ready) echo "lexi_client_ready_ok{slug=\"${slug}\"} 1" ;;
+      ready) echo "webamend_client_ready_ok{slug=\"${slug}\"} 1" ;;
       # `?` means the route is absent (an older image) — unknown, not broken,
       # and emitting 0 would page someone for a version skew.
       '?') ;;
-      *) echo "lexi_client_ready_ok{slug=\"${slug}\"} 0" ;;
+      *) echo "webamend_client_ready_ok{slug=\"${slug}\"} 0" ;;
     esac
   done
 
-  echo '# HELP lexi_client_agents_running Agent containers on that client daemon.'
-  echo '# TYPE lexi_client_agents_running gauge'
+  echo '# HELP webamend_client_agents_running Agent containers on that client daemon.'
+  echo '# TYPE webamend_client_agents_running gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     running="$(printf '%s' "$row" | cut -f6)"
     case "$running" in '' | *[!0-9]*) running=0 ;; esac
-    echo "lexi_client_agents_running{slug=\"${slug}\"} ${running}"
+    echo "webamend_client_agents_running{slug=\"${slug}\"} ${running}"
   done
 
-  echo '# HELP lexi_client_info Deployed image and commit, as labels on a constant.'
-  echo '# TYPE lexi_client_info gauge'
+  echo '# HELP webamend_client_info Deployed image and commit, as labels on a constant.'
+  echo '# TYPE webamend_client_info gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     image="$(printf '%s' "$row" | cut -f7)"
-    echo "lexi_client_info{slug=\"${slug}\",image=\"${image}\",sha=\"$(read_env_value "${CLIENT_ROOT}/${slug}/.env" APP_SHA)\"} 1"
+    echo "webamend_client_info{slug=\"${slug}\",image=\"${image}\",sha=\"$(read_env_value "${CLIENT_ROOT}/${slug}/.env" APP_SHA)\"} 1"
   done
 
-  echo '# HELP lexi_client_state_bytes Disk under that client'"'"'s state directory.'
-  echo '# TYPE lexi_client_state_bytes gauge'
+  echo '# HELP webamend_client_state_bytes Disk under that client'"'"'s state directory.'
+  echo '# TYPE webamend_client_state_bytes gauge'
   for row in "${rows[@]}"; do
     slug="$(printf '%s' "$row" | cut -f1)"
     # Only with --full: du over a git mirror is not free, and the disk ALERT
@@ -336,22 +336,22 @@ emit_prom() {
     # grew — so a slower cadence is right.
     if [ "$WITH_DU" -eq 1 ]; then
       state_bytes="$(du -sb "${CLIENT_ROOT}/${slug}" 2>/dev/null | cut -f1)"
-      [ -n "$state_bytes" ] && echo "lexi_client_state_bytes{slug=\"${slug}\"} ${state_bytes}"
+      [ -n "$state_bytes" ] && echo "webamend_client_state_bytes{slug=\"${slug}\"} ${state_bytes}"
     fi
   done
 
-  echo '# HELP lexi_agents_running_total Agent containers across every client daemon.'
-  echo '# TYPE lexi_agents_running_total gauge'
-  echo "lexi_agents_running_total ${TOTAL_AGENTS}"
-  echo '# HELP lexi_clients_total Clients on this host. Each runs at most one agent, so this is the agent ceiling; compare with free memory.'
-  echo '# TYPE lexi_clients_total gauge'
-  echo "lexi_clients_total ${#clients[@]}"
-  echo '# HELP lexi_clients_unhealthy Clients failing daemon, app or HTTP.'
-  echo '# TYPE lexi_clients_unhealthy gauge'
-  echo "lexi_clients_unhealthy ${#UNHEALTHY[@]}"
-  echo '# HELP lexi_maintenance A release is in progress; app-down alerts should hold.'
-  echo '# TYPE lexi_maintenance gauge'
-  [ -f /var/lib/lexi/maintenance ] && echo 'lexi_maintenance 1' || echo 'lexi_maintenance 0'
+  echo '# HELP webamend_agents_running_total Agent containers across every client daemon.'
+  echo '# TYPE webamend_agents_running_total gauge'
+  echo "webamend_agents_running_total ${TOTAL_AGENTS}"
+  echo '# HELP webamend_clients_total Clients on this host. Each runs at most one agent, so this is the agent ceiling; compare with free memory.'
+  echo '# TYPE webamend_clients_total gauge'
+  echo "webamend_clients_total ${#clients[@]}"
+  echo '# HELP webamend_clients_unhealthy Clients failing daemon, app or HTTP.'
+  echo '# TYPE webamend_clients_unhealthy gauge'
+  echo "webamend_clients_unhealthy ${#UNHEALTHY[@]}"
+  echo '# HELP webamend_maintenance A release is in progress; app-down alerts should hold.'
+  echo '# TYPE webamend_maintenance gauge'
+  [ -f /var/lib/webamend/maintenance ] && echo 'webamend_maintenance 1' || echo 'webamend_maintenance 0'
 }
 
 emit_json() {
@@ -432,8 +432,8 @@ main() {
   echo
   echo "TOTAL agent containers running across ${#clients[@]} client daemon(s): ${TOTAL_AGENTS}"
   echo "Each holds roughly 400 MB of RAM. Every client can run one at a time, so ${#clients[@]} is this host's ceiling."
-  if [ -S /run/lexi/slotd.sock ]; then
-    if slots_json="$(python3 "${SCRIPT_DIR}/slotd/lexi_slotd.py" status --socket /run/lexi/slotd.sock 2>/dev/null)"; then
+  if [ -S /run/webamend/slotd.sock ]; then
+    if slots_json="$(python3 "${SCRIPT_DIR}/slotd/webamend_slotd.py" status --socket /run/webamend/slotd.sock 2>/dev/null)"; then
       # Plain %-formatting, and no backslashes: the program is already inside
       # single quotes, so a double quote needs no escaping, and an escaped one
       # reaches Python as a backslash — which inside an f-string expression is
@@ -445,7 +445,7 @@ print("capacity %s, leased %s, queued %s, braked %s, refused %s" % (
     "yes" if status["braked"] else "no",
     sum(status["refused"].values())))')"
     else
-      echo "SLOTS daemon socket present but not answering — systemctl status lexi-slotd"
+      echo "SLOTS daemon socket present but not answering — systemctl status webamend-slotd"
     fi
   else
     echo "SLOTS no admission daemon on this host (ops/bootstrap-host.sh installs it); ceiling is the client count above"

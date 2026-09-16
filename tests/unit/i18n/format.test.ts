@@ -5,8 +5,8 @@ import { formatMessage, placeholdersOf, splitMessage } from '@/lib/i18n';
 describe('formatMessage', () => {
   it('fills each placeholder with the value given for it', () => {
     expect(formatMessage('Remove {name}', { name: 'logo.png' })).toBe('Remove logo.png');
-    expect(formatMessage('Tell {name} about {name}', { name: 'Lexi' })).toBe(
-      'Tell Lexi about Lexi',
+    expect(formatMessage('Tell {name} about {name}', { name: 'Webamend' })).toBe(
+      'Tell Webamend about Webamend',
     );
   });
 

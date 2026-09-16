@@ -1,8 +1,8 @@
 {
-  "title": "Lexi \u2014 requests",
-  "uid": "lexi-requests",
+  "title": "Webamend \u2014 requests",
+  "uid": "webamend-requests",
   "tags": [
-    "lexi"
+    "webamend"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
@@ -23,7 +23,7 @@
           "type": "loki",
           "uid": "${loki}"
         },
-        "query": "label_values({job=\"lexi\"}, slug)",
+        "query": "label_values({job=\"webamend\"}, slug)",
         "refresh": 2,
         "current": {
           "selected": true,
@@ -67,7 +67,7 @@
         {
           "refId": "A",
           "queryType": "instant",
-          "expr": "sum(count_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | outcome=\"failed\" [24h])) / sum(count_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json [24h]))"
+          "expr": "sum(count_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | outcome=\"failed\" [24h])) / sum(count_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json [24h]))"
         }
       ],
       "options": {
@@ -118,7 +118,7 @@
         {
           "refId": "A",
           "queryType": "instant",
-          "expr": "sum by (slug) (count_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json [24h]))",
+          "expr": "sum by (slug) (count_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json [24h]))",
           "legendFormat": "{{slug}}"
         }
       ],
@@ -147,7 +147,7 @@
         {
           "refId": "A",
           "queryType": "instant",
-          "expr": "sum by (slug) (sum_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap costUsd [24h]))",
+          "expr": "sum by (slug) (sum_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap costUsd [24h]))",
           "legendFormat": "{{slug}}"
         }
       ],
@@ -183,7 +183,7 @@
         {
           "refId": "A",
           "queryType": "instant",
-          "expr": "quantile_over_time(0.9, {job=\"lexi\", event=\"slot.waited\", slug=~\"$slug\"} | json | unwrap waitedMs [24h]) by (slug)",
+          "expr": "quantile_over_time(0.9, {job=\"webamend\", event=\"slot.waited\", slug=~\"$slug\"} | json | unwrap waitedMs [24h]) by (slug)",
           "legendFormat": "{{slug}}"
         }
       ],
@@ -216,7 +216,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) (count_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json [$__auto]))",
+          "expr": "sum by (outcome) (count_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json [$__auto]))",
           "legendFormat": "{{outcome}}"
         }
       ],
@@ -252,7 +252,7 @@
         {
           "refId": "A",
           "queryType": "instant",
-          "expr": "sum by (errorCode) (count_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | errorCode != \"\" [7d]))",
+          "expr": "sum by (errorCode) (count_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | errorCode != \"\" [7d]))",
           "legendFormat": "{{errorCode}}"
         }
       ],
@@ -279,12 +279,12 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "quantile_over_time(0.5, {job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap durationMs [$__auto]) by (slug)",
+          "expr": "quantile_over_time(0.5, {job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap durationMs [$__auto]) by (slug)",
           "legendFormat": "{{slug}} p50"
         },
         {
           "refId": "B",
-          "expr": "quantile_over_time(0.95, {job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap durationMs [$__auto]) by (slug)",
+          "expr": "quantile_over_time(0.95, {job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap durationMs [$__auto]) by (slug)",
           "legendFormat": "{{slug}} p95"
         }
       ],
@@ -321,32 +321,32 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap preparingMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap preparingMs [$__auto]))",
           "legendFormat": "{{slug}} preparing"
         },
         {
           "refId": "B",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap queuedMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap queuedMs [$__auto]))",
           "legendFormat": "{{slug}} queued"
         },
         {
           "refId": "C",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap runningMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap runningMs [$__auto]))",
           "legendFormat": "{{slug}} running"
         },
         {
           "refId": "D",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap gatingMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap gatingMs [$__auto]))",
           "legendFormat": "{{slug}} gating"
         },
         {
           "refId": "E",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap pushingMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap pushingMs [$__auto]))",
           "legendFormat": "{{slug}} pushing"
         },
         {
           "refId": "F",
-          "expr": "avg by (slug) (avg_over_time({job=\"lexi\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap buildingMs [$__auto]))",
+          "expr": "avg by (slug) (avg_over_time({job=\"webamend\", event=\"request.ended\", slug=~\"$slug\"} | json | unwrap buildingMs [$__auto]))",
           "legendFormat": "{{slug}} building"
         }
       ],
@@ -383,7 +383,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (kind) (count_over_time({job=\"lexi\", event=\"publication.ended\", slug=~\"$slug\"} | json [$__auto]))",
+          "expr": "sum by (kind) (count_over_time({job=\"webamend\", event=\"publication.ended\", slug=~\"$slug\"} | json [$__auto]))",
           "legendFormat": "{{kind}}"
         }
       ],
@@ -415,7 +415,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"lexi\", slug=~\"$slug\", event=~\"request.failed|provider.failed|agent.run_failed|request.lock_leak|publication.failed\"}"
+          "expr": "{job=\"webamend\", slug=~\"$slug\", event=~\"request.failed|provider.failed|agent.run_failed|request.lock_leak|publication.failed\"}"
         }
       ],
       "options": {

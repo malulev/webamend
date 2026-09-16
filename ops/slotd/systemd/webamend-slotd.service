@@ -1,17 +1,17 @@
 [Unit]
-Description=Lexi host admission queue
-Documentation=file:///opt/lexi/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
-Requires=lexi-slotd.socket
-After=lexi-slotd.socket
+Description=Webamend host admission queue
+Documentation=file:///opt/webamend/src/docs/superpowers/specs/2026-09-14-host-admission-queue-design.md
+Requires=webamend-slotd.socket
+After=webamend-slotd.socket
 
 [Service]
-ExecStart=/usr/bin/python3 /opt/lexi/src/ops/slotd/lexi_slotd.py
+ExecStart=/usr/bin/python3 /opt/webamend/src/ops/slotd/webamend_slotd.py
 # Every tunable, with its default and the measurement behind it, in
 # ops/slotd/slots.env.example. Absent file, spec defaults.
-EnvironmentFile=-/etc/lexi/slots.env
+EnvironmentFile=-/etc/webamend/slots.env
 DynamicUser=yes
 # The daemon needs to read the group's membership, nothing else.
-SupplementaryGroups=lexi-slots
+SupplementaryGroups=webamend-slots
 # The admission controller is the last thing that should die when memory is short.
 OOMScoreAdjust=-900
 Restart=on-failure

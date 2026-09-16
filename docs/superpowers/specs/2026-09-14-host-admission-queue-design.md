@@ -11,7 +11,7 @@ without impairing the ones already running. Beyond that point, requests queue.
 
 ## The problem, as observed
 
-A Lexi host runs one installation per client: one Linux user, one rootless
+A Webamend host runs one installation per client: one Linux user, one rootless
 Docker daemon, one app container. Nothing coordinates agent runs *between*
 those installations, and on 2026-09-14 a stress test on the production host
 measured what that costs.
@@ -48,7 +48,7 @@ never bound anything; it was removed rather than kept as false comfort. Ten
 clients each editing at once is ten concurrent agents — about 4 GB of agents on
 a 3.8 GB host — and no setting anywhere prevents it. **The host ceiling is the
 number of clients provisioned on it.** `ops/status.sh` now reports that number
-as `lexi_clients_total` so the gap is at least visible until this design lands.
+as `webamend_clients_total` so the gap is at least visible until this design lands.
 
 ## Goals
 
@@ -76,13 +76,13 @@ as `lexi_clients_total` so the gap is at least visible until this design lands.
 
 ## Design
 
-A small host daemon, **`lexi-slotd`**, owns the queue. Client apps ask it for
+A small host daemon, **`webamend-slotd`**, owns the queue. Client apps ask it for
 permission before starting an agent and hold the lease for the run's duration.
 
 ```
   malulev app ─┐
-  imidan  app ─┼──▶ /run/lexi/slotd.sock ──▶ lexi-slotd ──▶ FIFO queue
-  ...     app ─┘    (0660, group lexi-slots)     │            capacity N
+  imidan  app ─┼──▶ /run/webamend/slotd.sock ──▶ webamend-slotd ──▶ FIFO queue
+  ...     app ─┘    (0660, group webamend-slots)     │            capacity N
                                                  ├─ identity: SO_PEERCRED
                                                  ├─ brake:    MemAvailable
                                                  └─ grant:    {memoryBytes}
@@ -99,9 +99,9 @@ cpu_slots = floor(nproc * CPU_OVERSUBSCRIBE)
 capacity  = max(1, min(mem_slots, cpu_slots))
 ```
 
-`clients` is the membership of the `lexi-slots` group, which provisioning
+`clients` is the membership of the `webamend-slots` group, which provisioning
 maintains — no filesystem permissions to reason about. Defaults, all
-overridable in `/etc/lexi/slots.env`:
+overridable in `/etc/webamend/slots.env`:
 
 | Name | Default | Basis |
 |---|---|---|
@@ -197,7 +197,7 @@ HostConfig: {
 }
 ```
 
-Capacity and per-agent bound now come from the same `/etc/lexi/slots.env`, so
+Capacity and per-agent bound now come from the same `/etc/webamend/slots.env`, so
 they cannot drift apart, and the budget becomes provable: `capacity ×
 AGENT_MEM_CAP` against `MemTotal - reserve`. In fallback mode (no daemon) no
 cap is applied — today's behavior exactly.
@@ -263,7 +263,7 @@ reversible by removing one line from a `.env`.
 
 ### Host integration
 
-**The daemon** is a single stdlib-only Python 3 file, `ops/slotd/lexi-slotd.py`
+**The daemon** is a single stdlib-only Python 3 file, `ops/slotd/webamend-slotd.py`
 (`asyncio`, `socket`, `struct`, `pwd`). Python 3.12 is already on the host, so
 nothing is installed. It is not containerised on purpose: the queue that
 protects the host must not depend on the Docker daemons it is protecting.
@@ -273,18 +273,18 @@ needed a runtime installed to deliver a weaker identity guarantee.
 **Systemd owns the socket**, so the daemon never runs as root:
 
 ```ini
-# lexi-slotd.socket
+# webamend-slotd.socket
 [Socket]
-ListenStream=/run/lexi/slotd.sock
+ListenStream=/run/webamend/slotd.sock
 SocketMode=0660
-SocketGroup=lexi-slots
+SocketGroup=webamend-slots
 
-# lexi-slotd.service
+# webamend-slotd.service
 [Service]
-ExecStart=/usr/bin/python3 /opt/prosel/src/ops/slotd/lexi-slotd.py
-EnvironmentFile=-/etc/lexi/slots.env
+ExecStart=/usr/bin/python3 /opt/webamend/src/ops/slotd/webamend-slotd.py
+EnvironmentFile=-/etc/webamend/slots.env
 DynamicUser=yes
-SupplementaryGroups=lexi-slots
+SupplementaryGroups=webamend-slots
 OOMScoreAdjust=-900
 ```
 
@@ -295,10 +295,10 @@ should die when memory is short.
 alongside the two that exist:
 
 ```yaml
-- ${SLOT_BROKER_SOCKET:-/run/lexi/slotd.sock}:/run/lexi/slotd.sock
+- ${SLOT_BROKER_SOCKET:-/run/webamend/slotd.sock}:/run/webamend/slotd.sock
 ```
 
-`provision-client.sh` adds each client user to `lexi-slots`, writes
+`provision-client.sh` adds each client user to `webamend-slots`, writes
 `SLOT_BROKER_SOCKET` into the client `.env`, and signals the daemon to
 recompute capacity. `bootstrap-host.sh` creates the group and installs the
 units.
@@ -307,21 +307,21 @@ units.
 
 The daemon answers `{"op":"status"}` on the same socket with capacity, leased
 count, queue depth, p50 wait, and refusal counters by reason. `ops/probe.sh`
-queries it and writes metrics in the established `lexi_*` naming:
+queries it and writes metrics in the established `webamend_*` naming:
 
 ```
-lexi_slots_capacity                 4
-lexi_slots_leased                   2
-lexi_slots_queued                   6
-lexi_slots_braked                   0      # head is held by the memory brake
-lexi_slots_wait_seconds_p50         12.4
-lexi_slots_refused_total{reason=…}  3
+webamend_slots_capacity                 4
+webamend_slots_leased                   2
+webamend_slots_queued                   6
+webamend_slots_braked                   0      # head is held by the memory brake
+webamend_slots_wait_seconds_p50         12.4
+webamend_slots_refused_total{reason=…}  3
 ```
 
-`lexi_slots_capacity` replaces `lexi_clients_total` as the demand line on the
+`webamend_slots_capacity` replaces `webamend_clients_total` as the demand line on the
 memory-headroom panel and in alert A5. Two alert rules join it:
-`lexi_slots_queued > 0 for 10m` (capacity pressure) and any increase in
-`lexi_slots_refused_total` (capacity below demand). Both mean "add RAM or
+`webamend_slots_queued > 0 for 10m` (capacity pressure) and any increase in
+`webamend_slots_refused_total` (capacity below demand). Both mean "add RAM or
 another host," which is the early warning the old `waitedMs` logging argued
 for.
 
@@ -353,7 +353,7 @@ operator concern first.
 
 ## Testing
 
-**Daemon** (`ops/slotd/test_lexi_slotd.py`, `unittest`, no root, temp socket):
+**Daemon** (`ops/slotd/test_webamend_slotd.py`, `unittest`, no root, temp socket):
 - `compute_capacity()` — the table above, boundary cases, the `max(1, …)`
   floor, every override parsed from config.
 - Identity — the test's own uid maps to its own name; an unmapped uid is
@@ -456,12 +456,12 @@ it, so nothing here is thrown away.
 1. Land the daemon, `createLeaseSlots`, the `release` on `SlotOutcome`, the
    grant-carried cap and `CpuShares`, and every test. No behavior change while
    `SLOT_BROKER_SOCKET` is unset.
-2. Install `lexi-slotd` on the host; verify `lexi_slots_capacity` reports 4.
+2. Install `webamend-slotd` on the host; verify `webamend_slots_capacity` reports 4.
 3. Enable for one client; confirm a grant, then a queued request in the trail.
 4. Enable for the rest. Re-run the stress procedure *through the app*; confirm
    the cap holds and available memory never approaches zero.
-5. Switch the memory-headroom panel and alert A5 from `lexi_clients_total` to
-   `lexi_slots_capacity`; add the queued and refused alerts.
+5. Switch the memory-headroom panel and alert A5 from `webamend_clients_total` to
+   `webamend_slots_capacity`; add the queued and refused alerts.
 6. Add `MemoryMax` on the client user slices and `OOMScoreAdjust` on Caddy and
    sshd as the independent backstop.
 

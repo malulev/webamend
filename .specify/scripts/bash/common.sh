@@ -428,7 +428,7 @@ from pathlib import Path
 root = Path(os.environ['SPECKIT_EXTENSIONS'])
 registered = {}
 registry = root / '.registry'
-if os.path.lexists(registry):
+if os.path.webamendsts(registry):
     if not registry.is_file():
         print('registry_invalid: not a regular file', file=sys.stderr)
         sys.exit(1)

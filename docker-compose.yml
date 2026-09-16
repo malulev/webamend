@@ -55,13 +55,13 @@ services:
   app:
     # Two ways in, and which one applies is decided by whether APP_IMAGE names
     # a tag that already exists. On a development machine nothing sets it, the
-    # tag `lexi/app:local` is not in the daemon, and Compose falls back to
+    # tag `webamend/app:local` is not in the daemon, and Compose falls back to
     # the `build:` block below — one file, one `docker compose up`, no registry.
     # On a client host `ops/release.sh` sets APP_IMAGE to a tag it has already
     # built once and pushed to the host registry, so twenty installations pull
     # the same layers instead of each running `npm ci && npm run build` on a
     # 2 vCPU box. Keeping both here is what lets the same file serve both.
-    image: ${APP_IMAGE:-lexi/app:local}
+    image: ${APP_IMAGE:-webamend/app:local}
 
     # Built inline rather than from a Dockerfile of its own: the whole
     # deployment is meant to be one file to read, and the application image is
@@ -153,7 +153,7 @@ services:
       # with the socket's name, while a missing directory is harmless and
       # lets the socket appear later. Same path both sides, like the state
       # dir, so SLOT_BROKER_SOCKET in .env is right on the host and in here.
-      - ${SLOT_BROKER_DIR:-/run/lexi}:/run/lexi
+      - ${SLOT_BROKER_DIR:-/run/webamend}:/run/webamend
 
     ports:
       # Loopback only: the app speaks plain HTTP and does no TLS of its own, so
@@ -197,7 +197,7 @@ services:
 
     # Docker's default json-file driver keeps every line forever. Each client
     # runs its own rootless daemon, but all of them write to the one
-    # filesystem that also holds /srv/lexi and every client's image store — so
+    # filesystem that also holds /srv/webamend and every client's image store — so
     # without a ceiling, one chatty installation fills the disk and takes down
     # every other client with it. 30 MB per installation is enough to debug a
     # bad release and small enough that twenty of them are a rounding error.

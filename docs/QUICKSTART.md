@@ -77,7 +77,7 @@ Once per host, as root, on Ubuntu 24.04:
 
 ```bash
 apt-get update && apt-get install -y git curl caddy
-mkdir -p /opt/lexi && git clone <this repository> /opt/lexi/src && cd /opt/lexi/src
+mkdir -p /opt/webamend && git clone <this repository> /opt/webamend/src && cd /opt/webamend/src
 ops/bootstrap-host.sh
 ufw allow 22,80,443/tcp && ufw --force enable
 ```
@@ -98,17 +98,17 @@ an AAAA record if it has IPv6. Caddy cannot get a certificate until it resolves.
 
 ```bash
 ops/provision-client.sh acme edit.acme.example 3001
-sudoedit /srv/lexi/acme/.env        # fill in the same values as the local .env
+sudoedit /srv/webamend/acme/.env        # fill in the same values as the local .env
 ```
 
 Mint the secrets as the client user, then confirm the file parses (the script prints both commands
 verbatim; they run Node in a throwaway container, so the host needs no toolchain):
 
 ```bash
-docker run --rm -v /opt/lexi/src:/src:ro -w /build node:22-slim \
+docker run --rm -v /opt/webamend/src:/src:ro -w /build node:22-slim \
   sh -c 'cp -a /src/. /build && npm ci --silent \
          && npm run --silent gen:secrets' \
-  | sudo -u acme tee -a /srv/lexi/acme/.env >/dev/null
+  | sudo -u acme tee -a /srv/webamend/acme/.env >/dev/null
 ```
 
 Point DNS at the box: an **A record** for `edit.acme.example` to the VPS's public IP (and an AAAA
@@ -133,7 +133,7 @@ the right place.
 Deploying new code to every client later:
 
 ```bash
-cd /opt/lexi/src && git pull && ops/release.sh
+cd /opt/webamend/src && git pull && ops/release.sh
 ```
 
 ## Checks
