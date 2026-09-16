@@ -127,6 +127,16 @@ services:
       # debug | info | warn | error. Structured lines go to stdout, which the
       # daemon's json-file driver captures and the collector tails.
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Which address the server binds, not a name for this machine. Next's
+      # standalone server reads HOSTNAME as its bind address (`server.js`:
+      # `process.env.HOSTNAME || '0.0.0.0'`), and Docker sets HOSTNAME to the
+      # container id on every container — which resolves, so the server binds
+      # that one bridge address and nothing listens on loopback. Published
+      # traffic still arrives, so the app looks fine while the healthcheck
+      # below, which probes 127.0.0.1 from inside, is refused forever. Binding
+      # the wildcard widens nothing: the bridge address was already bound, and
+      # the port is published to the host's loopback only.
+      HOSTNAME: 0.0.0.0
 
     volumes:
       # Only the HOST half is configurable, and deliberately so. A client host
