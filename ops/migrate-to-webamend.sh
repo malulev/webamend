@@ -206,14 +206,47 @@ install_monitoring() {
   "${SCRIPT_DIR}/install-monitoring.sh"
 }
 
-# Every trace the old name could have left. None of them present means this
-# host is already webamend, and the right thing to do is nothing at all —
-# reinstalling units and restarting a healthy daemon is not "no-op enough".
-old_artifacts() {
+# --- 6. what a rename leaves behind ----------------------------------------
+#
+# Residue is not cosmetic. A stale `lexi.prom` keeps node_exporter publishing
+# frozen `lexi_*` series next to the live ones, so a dashboard shows both and
+# neither is obviously wrong. A stale socket file answers "connection refused"
+# rather than "no such file", which reads like a daemon that is down. And
+# monitoring.env holds the collector's credentials: left in /etc/lexi, the
+# installer writes a fresh one from the example and Alloy ships nothing.
+#
+# Cleaning it needs no downtime, so it runs on every invocation — including on
+# a host that is otherwise fully migrated.
+
+clear_residue() {
+  move_dir /etc/lexi/monitoring.env /etc/webamend/monitoring.env
+  if [ -f /etc/webamend/monitoring.env ]; then
+    chmod 0600 /etc/webamend/monitoring.env
+  fi
+  rmdir /etc/lexi 2>/dev/null || true
+
+  rm -f /run/lexi/slotd.sock
+  rmdir /run/lexi 2>/dev/null || true
+
+  rm -f /var/lib/node_exporter/textfile/lexi.prom
+}
+
+residue() {
+  local found=()
+  [ -e /etc/lexi ] && found+=(/etc/lexi)
+  [ -e /run/lexi ] && found+=(/run/lexi)
+  [ -e /var/lib/node_exporter/textfile/lexi.prom ] && found+=(lexi.prom)
+  printf '%s\n' "${found[@]:-}"
+}
+
+# The parts that cannot be fixed without stopping the clients: the source, the
+# client root, the group every slot request is identified by, the wrapper and
+# the units. None of them present means the rename itself is done, whatever
+# residue is still lying around.
+structural_artifacts() {
   local found=()
   [ -e "$OLD_SRC" ] && found+=("$OLD_SRC")
   [ -e "$OLD_CLIENTS" ] && found+=("$OLD_CLIENTS")
-  [ -e /etc/lexi ] && found+=(/etc/lexi)
   [ -e /var/lib/lexi ] && found+=(/var/lib/lexi)
   [ -e /usr/local/bin/lexi-logs ] && found+=(/usr/local/bin/lexi-logs)
   getent group lexi-slots >/dev/null && found+=("group lexi-slots")
@@ -225,14 +258,24 @@ old_artifacts() {
 main() {
   [ -d "$NEW_SRC" ] || [ -d "$OLD_SRC" ] || die "neither ${OLD_SRC} nor ${NEW_SRC} exists — is this the right host?"
 
-  local remaining
-  remaining="$(old_artifacts | grep -c . || true)"
-  if [ "$remaining" -eq 0 ]; then
-    note "nothing named lexi on this host; already migrated. Doing nothing."
+  local structural
+  structural="$(structural_artifacts | grep -c . || true)"
+
+  if [ "$structural" -eq 0 ]; then
+    if [ "$(residue | grep -c . || true)" -eq 0 ]; then
+      note "nothing named lexi on this host; already migrated. Doing nothing."
+      exit 0
+    fi
+    note "already migrated; clearing what the rename left behind:"
+    residue | sed 's/^/migrate:   /'
+    clear_residue
+    note "done. No client was stopped."
     exit 0
   fi
-  note "found ${remaining} thing(s) still named lexi:"
-  old_artifacts | sed 's/^/migrate:   /'
+
+  note "found ${structural} thing(s) still named lexi:"
+  structural_artifacts | sed 's/^/migrate:   /'
+  residue | sed 's/^/migrate:   /'
 
   note "stopping clients and the old units"
   stop_clients "$OLD_CLIENTS"
@@ -257,6 +300,9 @@ main() {
 
   install_slotd
   install_log_wrapper
+  # Before the monitoring installer, which writes a fresh env file from the
+  # example only when there is none — so the credentials have to arrive first.
+  clear_residue
   install_monitoring
 
   note "host renamed."
