@@ -179,6 +179,18 @@ export async function beginPublication(
     return fail('internal_error', cause);
   }
 
+  // The act is done and the audit entry says so. This is the line the
+  // collector counts publishes and undos from (the requests dashboard, alert
+  // rules B6 and B7); the build that follows reports on a line of its own.
+  // Who pressed the button stays in the audit entry — not in an external
+  // log service.
+  log.info('publication.ended', {
+    requestId,
+    kind: input.kind,
+    conversationNumber: input.conversationNumber,
+    commitSha,
+  });
+
   await notifyPublication(
     { mailer: deps.mailer, client: deps.client, env: deps.env },
     {

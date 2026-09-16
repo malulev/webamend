@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { claimConversationBranch } from '@/lib/conversations';
 import { createFakeRepoClient } from '@/lib/github/fake';
@@ -485,5 +485,74 @@ describe('publishing a change the site has moved past', () => {
 
     expect(begun).toMatchObject({ ok: false, reason: 'failed', errorCode: 'internal_error' });
     expect(tree.disposed).toBe(1);
+  });
+});
+
+/** Every JSON line the logger writes while `run` executes, parsed. */
+async function loggedDuring<T>(
+  run: () => Promise<T>,
+): Promise<{ result: T; lines: Record<string, unknown>[] }> {
+  const lines: Record<string, unknown>[] = [];
+  const spy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+    for (const raw of String(chunk).split('\n')) if (raw) lines.push(JSON.parse(raw));
+    return true;
+  });
+  try {
+    return { result: await run(), lines };
+  } finally {
+    spy.mockRestore();
+  }
+}
+
+describe("the collector's view of a publication", () => {
+  it('logs publication.ended with the kind once the act is recorded, publish and undo alike', async () => {
+    const w = world();
+    const number = await previewed(w.client);
+
+    const published = await loggedDuring(() =>
+      beginPublication(w.deps, { conversationNumber: number, kind: 'publish', actor: 'jane' }),
+    );
+    if (!published.result.ok) throw new Error('should have published');
+    const merged = w.client.state.pullRequests.find((pr) => pr.number === number)!;
+    w.netlify.addDeploy(productionDeploy(merged.mergeCommitSha!, 'ready'));
+    await published.result.completed;
+
+    const undone = await loggedDuring(() =>
+      beginPublication(w.deps, { conversationNumber: number, kind: 'undo', actor: 'jane' }),
+    );
+    if (!undone.result.ok) throw new Error(`should have undone: ${undone.result.reason}`);
+
+    const ended = [...published.lines, ...undone.lines].filter(
+      (line) => line.event === 'publication.ended',
+    );
+    expect(ended).toEqual([
+      expect.objectContaining({
+        level: 'info',
+        kind: 'publish',
+        conversationNumber: number,
+        requestId: published.result.requestId,
+        commitSha: merged.mergeCommitSha,
+      }),
+      expect.objectContaining({
+        level: 'info',
+        kind: 'undo',
+        conversationNumber: number,
+        requestId: undone.result.requestId,
+        commitSha: w.client.state.refs['refs/heads/main']!.sha,
+      }),
+    ]);
+    // Who pressed the button is for the audit entry in the repository, not
+    // for an external log service.
+    expect(ended.some((line) => 'actor' in line)).toBe(false);
+  });
+
+  it('does not log publication.ended when the publish was refused or failed', async () => {
+    const w = world({ held: true });
+    const number = await previewed(w.client);
+    const refused = await loggedDuring(() =>
+      beginPublication(w.deps, { conversationNumber: number, kind: 'publish', actor: 'jane' }),
+    );
+    expect(refused.result.ok).toBe(false);
+    expect(refused.lines.filter((line) => line.event === 'publication.ended')).toEqual([]);
   });
 });
