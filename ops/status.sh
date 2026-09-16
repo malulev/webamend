@@ -434,7 +434,16 @@ main() {
   echo "Each holds roughly 400 MB of RAM. Every client can run one at a time, so ${#clients[@]} is this host's ceiling."
   if [ -S /run/lexi/slotd.sock ]; then
     if slots_json="$(python3 "${SCRIPT_DIR}/slotd/lexi_slotd.py" status --socket /run/lexi/slotd.sock 2>/dev/null)"; then
-      echo "SLOTS $(printf '%s' "$slots_json" | python3 -c 'import json,sys; s=json.load(sys.stdin); print(f"capacity {s[\"capacity\"]}, leased {s[\"leased\"]}, queued {s[\"queued\"]}, braked {\"yes\" if s[\"braked\"] else \"no\"}, refused {sum(s[\"refused\"].values())}")')"
+      # Plain %-formatting, and no backslashes: the program is already inside
+      # single quotes, so a double quote needs no escaping, and an escaped one
+      # reaches Python as a backslash — which inside an f-string expression is
+      # a SyntaxError, so this line printed a traceback and a bare "SLOTS".
+      echo "SLOTS $(printf '%s' "$slots_json" | python3 -c 'import json, sys
+status = json.load(sys.stdin)
+print("capacity %s, leased %s, queued %s, braked %s, refused %s" % (
+    status["capacity"], status["leased"], status["queued"],
+    "yes" if status["braked"] else "no",
+    sum(status["refused"].values())))')"
     else
       echo "SLOTS daemon socket present but not answering — systemctl status lexi-slotd"
     fi
