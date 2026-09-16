@@ -139,8 +139,13 @@ IOSchedulingClass=idle
 OVERRIDE
 
   systemctl daemon-reload
-  systemctl enable --now alloy
-  note "alloy installed and started"
+  # Not `enable --now`: that leaves an Alloy that is already running on the
+  # config and environment it started with, and both were just rewritten. A
+  # restart loses nothing — file positions are persisted, and the metrics
+  # queue has a write-ahead log.
+  systemctl enable alloy
+  systemctl restart alloy
+  note "alloy installed and restarted on this config"
   note "check it: systemctl status alloy; journalctl -u alloy -n 30"
   note "then CONFIRM LOGS ARRIVE: in Grafana, {job=\"webamend\"} must return lines."
   note "  metrics flowing while logs stay empty means Alloy cannot read the"

@@ -54,7 +54,7 @@ ops/status.sh --quiet                  # exit status only, for a timer
 | `status.sh [<slug>]`                           | root   | Any time. One line per client, plus the host-wide agent total. `--logs` to see why one is unhappy.                                                                                                                                          |
 | `launch-client.sh <slug> <hostname> [port]`    | root   | The four steps above for one new client, in order, with the hand steps between them: opens `.env` in an editor, mints the secrets, runs `check:env`, waits for DNS, adds the Caddy block, checks HTTPS. Re-run after a failure; it resumes. |
 
-| `migrate-to-webamend.sh`                       | root   | Once, on a host provisioned before the product was renamed. Moves `/opt/prosel` and `/srv/lexi`, renames the `lexi-slots` group in place, reinstalls the daemon unit, the probe timers and the log wrapper, and rewrites each client's `.env`. `--release` finishes by rolling every client onto the new image name. |
+| `migrate-to-webamend.sh`                       | root   | Once, on a host provisioned before the product was renamed. Moves `/opt/prosel` and `/srv/lexi`, renames the `lexi-slots` group in place, reinstalls the daemon unit, the probe timers, the log wrapper and, where it is installed, Alloy's config and unit drop-in, and rewrites each client's `.env`. `--release` finishes by rolling every client onto the new image name. |
 
 All four are idempotent. All four refuse rather than guess.
 

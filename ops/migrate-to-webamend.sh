@@ -28,6 +28,8 @@ OLD_SRC=/opt/prosel
 NEW_SRC=/opt/webamend
 OLD_CLIENTS=/srv/lexi
 NEW_CLIENTS=/srv/webamend
+OLD_ALLOY_DROPIN=/etc/systemd/system/alloy.service.d/lexi.conf
+ALLOY_CONFIG=/etc/alloy/config.alloy
 RUN_RELEASE=0
 
 die() {
@@ -198,12 +200,24 @@ install_log_wrapper() {
   rm -f /usr/local/bin/lexi-logs
 }
 
+# Alloy is phase 2 of MONITORING.md, so whether it is here is a fact about the
+# host, not the checkout. Where it is, its unit drop-in and its config both
+# name the old product — the drop-in reads /etc/lexi/monitoring.env, the
+# config labels every line job="lexi" — and only the installer rewrites them.
+alloy_installed() {
+  command -v alloy >/dev/null 2>&1 && [ -f "$ALLOY_CONFIG" ]
+}
+
 install_monitoring() {
   [ -x "${SCRIPT_DIR}/install-monitoring.sh" ] || {
     note "install-monitoring.sh not found; skipping the probe timers"
     return 0
   }
-  "${SCRIPT_DIR}/install-monitoring.sh"
+  if alloy_installed; then
+    "${SCRIPT_DIR}/install-monitoring.sh" --with-alloy
+  else
+    "${SCRIPT_DIR}/install-monitoring.sh"
+  fi
 }
 
 # --- 6. what a rename leaves behind ----------------------------------------
@@ -214,6 +228,14 @@ install_monitoring() {
 # rather than "no such file", which reads like a daemon that is down. And
 # monitoring.env holds the collector's credentials: left in /etc/lexi, the
 # installer writes a fresh one from the example and Alloy ships nothing.
+#
+# Alloy's own unit drop-in and config are residue of the same kind, and the
+# costlier kind. The drop-in reads /etc/lexi/monitoring.env, so the first
+# restart after that file moves brings Alloy up with every GRAFANA_* variable
+# empty — healthy by its own account, pushing to "" — and the config labels
+# every line job="lexi" where the dashboards now ask for webamend. Both are
+# the installer's to write, which is why every path through this script ends
+# by running it.
 #
 # Cleaning it needs no downtime, so it runs on every invocation — including on
 # a host that is otherwise fully migrated.
@@ -226,6 +248,10 @@ clear_residue() {
   rmdir /run/lexi 2>/dev/null || true
 
   rm -f /var/lib/node_exporter/textfile/lexi.prom
+
+  # The installer writes its own drop-in beside this one and systemd would
+  # load both. Removed first, so the reinstall leaves exactly one.
+  rm -f "$OLD_ALLOY_DROPIN"
 }
 
 # The collector's credentials, which only exist on a host someone configured.
@@ -255,10 +281,11 @@ adopt_monitoring_env() {
     note "both ${old} and ${new} have content of their own — merge them by hand"
     return 0
   fi
-
-  # The agent read the placeholder at start-up and will go on shipping nothing
-  # until it rereads the file.
-  systemctl restart alloy 2>/dev/null && note "restarted alloy" || true
+  # Alloy read whatever was there at start-up and goes on shipping nothing
+  # until it rereads the file. No restart here: one with the old drop-in still
+  # in place is what emptied its credentials in the first place. The
+  # installer, which follows on every path, restarts it once the drop-in is
+  # right.
 }
 
 residue() {
@@ -266,6 +293,10 @@ residue() {
   [ -e /etc/lexi ] && found+=(/etc/lexi)
   [ -e /run/lexi ] && found+=(/run/lexi)
   [ -e /var/lib/node_exporter/textfile/lexi.prom ] && found+=(lexi.prom)
+  [ -e "$OLD_ALLOY_DROPIN" ] && found+=(alloy.service.d/lexi.conf)
+  if alloy_installed && grep -q 'job *= *"lexi"' "$ALLOY_CONFIG"; then
+    found+=("config.alloy still labels job=\"lexi\"")
+  fi
   printf '%s\n' "${found[@]:-}"
 }
 
@@ -299,6 +330,9 @@ main() {
     note "already migrated; clearing what the rename left behind:"
     residue | sed 's/^/migrate:   /'
     clear_residue
+    # Rewrites Alloy's config and drop-in and restarts it onto them; what else
+    # it writes — timers, journald and docker log caps — is idempotent.
+    install_monitoring
     note "done. No client was stopped."
     exit 0
   fi
