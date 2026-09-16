@@ -1,11 +1,13 @@
 import { BRAND } from '@/lib/brand';
 
 /**
- * The mark: a page of prose whose last line resolves into a tick.
+ * The mark: a W whose middle peak is a proofreader's caret, the sign for
+ * "insert here". The letter is the name; the caret is what it does.
  *
- * Three lines of text and one of them finishing as a check is the whole
- * product in a glyph — say it, and it is done. Drawn in currentColor so it
- * sits on any surface, with the tick in the accent when one is available.
+ * Kept identical to the marketing site's (`Brand.tsx` there, same geometry
+ * and the same two tokens) so a client who arrives from webamend.com meets
+ * the same logo when they sign in. Drawn in currentColor so it sits on any
+ * surface, with the caret in the accent when one is available.
  */
 export function BrandMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
@@ -19,16 +21,18 @@ export function BrandMark({ size = 28, className }: { size?: number; className?:
     >
       <rect x="1.5" y="1.5" width="29" height="29" rx="8" fill="currentColor" />
       <path
-        d="M9 10.5h14M9 16h9"
+        d="M7 10.5l4.5 12.5L16 13l4.5 10L25 10.5"
+        fill="none"
         stroke="var(--brand-paper, #fff)"
-        strokeWidth="2.6"
+        strokeWidth="2.9"
         strokeLinecap="round"
+        strokeLinejoin="round"
       />
       <path
-        d="M9 21.5h4l2.6 2.6 6.4-6.4"
+        d="M12.6 20.5L16 13l3.4 7.5"
         fill="none"
         stroke="var(--brand-accent-on-ink, #5FD4CF)"
-        strokeWidth="2.6"
+        strokeWidth="2.9"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
