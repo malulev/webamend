@@ -219,16 +219,46 @@ install_monitoring() {
 # a host that is otherwise fully migrated.
 
 clear_residue() {
-  move_dir /etc/lexi/monitoring.env /etc/webamend/monitoring.env
-  if [ -f /etc/webamend/monitoring.env ]; then
-    chmod 0600 /etc/webamend/monitoring.env
-  fi
+  adopt_monitoring_env
   rmdir /etc/lexi 2>/dev/null || true
 
   rm -f /run/lexi/slotd.sock
   rmdir /run/lexi 2>/dev/null || true
 
   rm -f /var/lib/node_exporter/textfile/lexi.prom
+}
+
+# The collector's credentials, which only exist on a host someone configured.
+#
+# Ordering made this awkward once already: install-monitoring.sh writes a fresh
+# env file from its example when it finds none, so a migration that installs
+# monitoring before moving the old file ends up with a placeholder in place and
+# the real credentials stranded. A placeholder is recognisable — it is the
+# example, byte for byte — so that case resolves itself. Two files that both
+# say something are a merge, and a merge is not a script's decision to make.
+adopt_monitoring_env() {
+  local old=/etc/lexi/monitoring.env
+  local new=/etc/webamend/monitoring.env
+  local example="${SCRIPT_DIR}/monitoring/alloy/env.example"
+
+  [ -f "$old" ] || return 0
+
+  if [ ! -e "$new" ]; then
+    mv "$old" "$new"
+    chmod 0600 "$new"
+    note "moved ${old} -> ${new}"
+  elif [ -f "$example" ] && cmp -s "$new" "$example"; then
+    mv "$old" "$new"
+    chmod 0600 "$new"
+    note "${new} was the untouched example; replaced it with this host's real one"
+  else
+    note "both ${old} and ${new} have content of their own — merge them by hand"
+    return 0
+  fi
+
+  # The agent read the placeholder at start-up and will go on shipping nothing
+  # until it rereads the file.
+  systemctl restart alloy 2>/dev/null && note "restarted alloy" || true
 }
 
 residue() {
