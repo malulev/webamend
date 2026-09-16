@@ -372,11 +372,10 @@ never acted on belongs in the digest, not in your inbox.
 
 ### 3. A dashboard — about ten minutes to build
 
-No dashboard JSON ships with this repo. A hand-written one that fails to import
-is worse than a list of panels you paste in yourself, and I had no Grafana
-instance to validate one against.
-
-**Dashboards → New → New dashboard**, then add these panels. Each is one query.
+Two dashboards ship in `ops/monitoring/grafana/`, pushed with
+`push-dashboards.sh` (see [MONITORING.md](MONITORING.md#where-to-look)). The
+panels below are what they contain, one query each — the list is here for
+building the same view somewhere the JSON cannot be imported.
 
 | Panel                    | Type                      | Query                                                                                                        |
 | ------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------------ |

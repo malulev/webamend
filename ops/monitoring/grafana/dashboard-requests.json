@@ -95,7 +95,8 @@
                 "value": 0.25
               }
             ]
-          }
+          },
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -126,6 +127,11 @@
         "colorMode": "none",
         "graphMode": "none",
         "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0"
+        }
       }
     },
     {
@@ -159,7 +165,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "decimals": 2
+          "decimals": 2,
+          "noValue": "0"
         },
         "overrides": []
       }
@@ -194,7 +201,8 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "ms",
+          "noValue": "0"
         },
         "overrides": []
       }

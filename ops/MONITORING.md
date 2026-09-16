@@ -90,12 +90,22 @@ queries. The short version:
   agent's last output lines, which exist nowhere else by design.
 - **In Grafana:** Explore → Loki for `{job="webamend"}`, Explore → Prometheus for
   `webamend_*` and `node_*`, Alerting → Alert rules for what is firing.
-- **Dashboards:** import `monitoring/grafana/dashboard-health.json` (is it up,
-  per client, right now) and `monitoring/grafana/dashboard-requests.json` (did
-  the requests work, why were they slow, what did they cost). Dashboards → New
-  → Import → Upload JSON file, then pick the Prometheus and Loki data sources
-  when prompted. Add the prebuilt Node Exporter Full dashboard (ID `1860`) for
-  the deep host view.
+- **Dashboards:** `monitoring/grafana/dashboard-health.json` (is it up, per
+  client, right now) and `monitoring/grafana/dashboard-requests.json` (did the
+  requests work, why were they slow, what did they cost). Push them from the
+  repository, so the copy in Grafana never drifts from the one in git:
+
+  ```bash
+  GRAFANA_URL=https://<stack>.grafana.net GRAFANA_TOKEN=<service account token, Editor> \
+    ops/monitoring/grafana/push-dashboards.sh --remove-old
+  ```
+
+  Re-run after any change to the JSON. `--remove-old` deletes the copies
+  imported before the product was renamed, which nothing has fed since; the
+  data before the rename is still in Loki under `{job="lexi"}` and in
+  Prometheus as `lexi_*`, with `project="lexi"`. Upload by hand works too
+  (Dashboards → New → Import → Upload JSON file), once. Add the prebuilt Node
+  Exporter Full dashboard (ID `1860`) for the deep host view.
 
 ## The numbers a person should look at
 
