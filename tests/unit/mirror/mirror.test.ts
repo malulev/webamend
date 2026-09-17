@@ -250,6 +250,24 @@ describe('createMirror().fetchRef', () => {
     await tree.dispose();
   });
 
+  it('sees a ref that appeared after the mirror was first built, and its removal', async () => {
+    const h = await harness();
+    await h.mirror.sync();
+    const sha = (await h.remoteGit.revparse(['HEAD'])).trim();
+    await h.remoteGit.raw(['update-ref', REF, sha]);
+
+    await h.mirror.sync();
+    const held = await h.mirror.checkout('conversation-7', 'main');
+    expect(await h.mirror.fetchRef(held, REF)).toBe(sha);
+    await held.dispose();
+
+    await h.remoteGit.raw(['update-ref', '-d', REF]);
+    await h.mirror.sync();
+    const gone = await h.mirror.checkout('conversation-7', 'main');
+    expect(await h.mirror.fetchRef(gone, REF)).toBeNull();
+    await gone.dispose();
+  });
+
   it('leaves no remote and no trace of where the ref came from', async () => {
     const h = await harness();
     await h.remoteGit.raw(['update-ref', REF, (await h.remoteGit.revparse(['HEAD'])).trim()]);

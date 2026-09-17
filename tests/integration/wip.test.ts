@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { claimConversationBranch } from '@/lib/conversations';
 import { CLIENT_MESSAGES, WORK_KEPT_MESSAGE } from '@/lib/jobs/messages';
 import { runRequest } from '@/lib/jobs/run';
+import { createMirror } from '@/lib/mirror/mirror';
 import { wipRefFor } from '@/lib/jobs/wip';
 import { parseComment } from '@/lib/record/record';
 import type { FakeRunnerScript } from '@/lib/runner/fake';
@@ -342,5 +343,41 @@ describe('an agent that runs out of time mid-edit', () => {
     expect(await keptFile(harness.originDir, pullRequest.number, 'src/index.html')).toContain(
       'Built for speed',
     );
+  });
+});
+
+/**
+ * The harness mirror is a stand-in. This runs the same round trip on the real
+ * one, because the two assumptions kept work rests on live there: an
+ * incremental sync carries a ref outside `refs/heads`, and a hardened tree
+ * with no remote can still be handed it.
+ */
+describe('on the real mirror', () => {
+  it('keeps, restores, publishes and clears', async () => {
+    const script = interruptedAfter(writes('src/index.html', '<h1>Built for speed</h1>\n'));
+    harness = await createHarness({ script, previewTimeoutMs: 50 });
+    const { originDir } = harness;
+    const root = harness.deps.workRoot!;
+    harness.deps.mirror = createMirror({
+      remoteUrl: async () => originDir,
+      cacheDir: join(root, 'real-mirror.git'),
+      workRoot: join(root, 'real-work'),
+    });
+    const pullRequest = await openConversation(harness.client);
+
+    await sendRequest(harness, pullRequest.number, pullRequest.headRef, 'Shorten it');
+    expect(await keptWorkExists(originDir, pullRequest.number)).toBe(true);
+
+    rescript(script, finishesWith(writes('src/about.html', '<h1>About</h1>\n')));
+    await sendRequest(harness, pullRequest.number, pullRequest.headRef, 'Carry on');
+
+    expect(harness.runner.calls.at(-1)!.prompt.request).toContain('- src/index.html');
+    expect(await readPushedFile(originDir, pullRequest.headRef, 'src/index.html')).toContain(
+      'Built for speed',
+    );
+    expect(await readPushedFile(originDir, pullRequest.headRef, 'src/about.html')).toContain(
+      'About',
+    );
+    expect(await keptWorkExists(originDir, pullRequest.number)).toBe(false);
   });
 });
