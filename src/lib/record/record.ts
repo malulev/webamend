@@ -99,6 +99,7 @@ const requestRecordSchema = z
     blockedPath: z.string().optional(),
     errorCode: z.enum(ERROR_CODE_VALUES).optional(),
     errorDetail: z.string().optional(),
+    wipSaved: z.boolean().optional(),
   })
   // contracts/durable-record.md: "blocked carries violation and
   // blockedPath; failed carries errorCode and a short errorDetail". A record

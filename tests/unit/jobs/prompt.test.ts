@@ -225,3 +225,29 @@ describe('attached files', () => {
     expect(Object.keys(prompt).sort()).toEqual(['guidance', 'history', 'request']);
   });
 });
+
+/**
+ * Work kept from an interrupted request is already in the tree when the next
+ * agent starts. Unannounced it reads as the site's own state, and an agent
+ * that cannot tell its predecessor's half-finished edit from the client's
+ * site will build on a mistake or leave one in.
+ */
+describe('work kept from an interrupted request', () => {
+  it('names the paths already edited and says they are unfinished', () => {
+    const prompt = assemblePrompt({
+      request: 'Carry on',
+      history: [],
+      guidance: '',
+      resumedPaths: ['src/index.html'],
+    });
+
+    expect(prompt.request).toContain('Carry on');
+    expect(prompt.request).toContain('- src/index.html');
+    expect(prompt.request).toMatch(/interrupted/i);
+  });
+
+  it('adds nothing when no work was kept', () => {
+    const prompt = assemblePrompt({ request: 'x', history: [], guidance: '', resumedPaths: [] });
+    expect(prompt.request).toBe('x');
+  });
+});

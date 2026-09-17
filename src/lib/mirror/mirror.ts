@@ -179,6 +179,27 @@ async function bringUpToDate(
 }
 
 /**
+ * Fetches from the cache by path, never from the authenticated remote, for the
+ * reason `createWorkingTree` clones from it: the tree is about to be mounted
+ * into the agent's container and must never have seen the credential.
+ * `FETCH_HEAD` is removed afterwards because it records where the fetch came
+ * from, and a host path is nothing the container needs to read either.
+ */
+async function fetchRefInto(
+  cacheDir: string,
+  tree: WorkingTree,
+  ref: string,
+): Promise<string | null> {
+  if (!(await refExists(simpleGit(cacheDir), ref))) return null;
+
+  const git = hardenedGit(tree.dir);
+  await git.raw(['fetch', '--no-tags', cacheDir, ref]);
+  const sha = (await git.revparse(['FETCH_HEAD'])).trim();
+  await rm(path.join(tree.dir, '.git', 'FETCH_HEAD'), { force: true });
+  return sha;
+}
+
+/**
  * `git merge`, with a conflict read from the tree rather than from the exit
  * code: a conflicting merge exits non-zero with everything on stdout, which
  * simple-git reports as success, so the exit code alone says nothing.
@@ -230,6 +251,10 @@ export function createMirror(options: CreateMirrorOptions): Mirror {
         baseBranch,
         options.author ?? HOST_AUTHOR,
       );
+    },
+
+    fetchRef(tree: WorkingTree, ref: string) {
+      return fetchRefInto(options.cacheDir, tree, ref);
     },
   };
 }

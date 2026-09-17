@@ -26,6 +26,37 @@ export async function pushBranch(
   }
 }
 
+/**
+ * Pushes HEAD to a ref outside `refs/heads`, replacing whatever it held.
+ *
+ * Forced because the ref is a slot, not a history: kept work is replaced by
+ * newer kept work, and nothing ever builds on it (src/lib/jobs/wip.ts).
+ */
+export async function pushRef(tree: WorkingTree, ref: string, remoteUrl: string): Promise<void> {
+  const git = hardenedGit(tree.dir);
+
+  try {
+    await git.raw(['push', '--force', remoteUrl, `HEAD:${ref}`]);
+  } catch (cause) {
+    throw new Error(`could not push ${ref}: ${redactRemote(cause, remoteUrl)}`);
+  }
+}
+
+/** Removes a ref from the remote. The ref must exist: git refuses to delete one that does not. */
+export async function deleteRemoteRef(
+  tree: WorkingTree,
+  ref: string,
+  remoteUrl: string,
+): Promise<void> {
+  const git = hardenedGit(tree.dir);
+
+  try {
+    await git.raw(['push', remoteUrl, `:${ref}`]);
+  } catch (cause) {
+    throw new Error(`could not delete ${ref}: ${redactRemote(cause, remoteUrl)}`);
+  }
+}
+
 function redactRemote(cause: unknown, remoteUrl: string): string {
   const message = cause instanceof Error ? cause.message : String(cause);
   return message

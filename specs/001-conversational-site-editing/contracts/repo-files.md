@@ -135,3 +135,11 @@ author and message it controls.
 - Outbound network restricted to the model provider where the environment permits; the absence
   of credentials is the enforced boundary, network restriction is defence in depth.
 - Destroyed after every request, successful or not.
+- One exception to "nothing survives a failed request": a run interrupted by the model provider
+  (`model_credit`, `model_quota`, `model_unavailable`) or by the clock (`agent_timeout`) has its
+  edits kept by the **host**, after they pass the policy gate, as a host-authored commit on
+  `refs/webagent/wip/c-<conversation>`. That ref is outside `refs/heads`, so nothing builds or
+  previews it. The conversation's next request starts with those edits laid over its tree,
+  uncommitted, so the gate judges the whole change again before anything is published. The ref is
+  removed once a tree containing it has been judged. The container still never commits, and a
+  change the gate refuses is still discarded (`src/lib/jobs/wip.ts`).

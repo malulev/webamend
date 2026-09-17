@@ -47,6 +47,8 @@ Changed the homepage hero and the shared button styles. Your preview is ready.
 - **`outcome`** is one of `succeeded`, `blocked`, `failed`, `abandoned`. `blocked` carries
   `violation` and `blockedPath`. `failed` carries `errorCode` and a short `errorDetail`.
   `abandoned` is written when a stale lock is broken, by the process that breaks it.
+- **`wipSaved`** is `true` on a `failed` record whose run was interrupted and whose edits were kept
+  for the conversation's next request (contracts/repo-files.md). Absent otherwise; never `false`.
 - **`notified`** lists events already emailed, which is how notification stays idempotent without
   a delivery record (OD-004): before sending, read the record; if the event is listed, skip.
 - **Versioning**: the marker carries `v1`. A future shape uses a new marker; readers ignore

@@ -44,6 +44,12 @@ export interface Mirror {
    * touched.
    */
   bringUpToDate(branch: string, baseBranch: string): Promise<UpToDateOutcome>;
+  /**
+   * Brings `ref` from the mirror into `tree` and answers the commit it names,
+   * or `null` when the mirror holds no such ref. For refs a clone does not
+   * carry (anything outside `refs/heads`); the tree gains no remote by it.
+   */
+  fetchRef(tree: WorkingTree, ref: string): Promise<string | null>;
 }
 
 export interface ChangeSet {

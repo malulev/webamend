@@ -234,6 +234,12 @@ export interface RequestRecord {
   /** Present when `outcome` is `failed`. */
   errorCode?: ErrorCode;
   errorDetail?: string;
+  /**
+   * Present, and `true`, when an interrupted run's edits were kept for the
+   * next request in this conversation (src/lib/jobs/wip.ts). Never `false`:
+   * nothing kept is the ordinary case and says nothing.
+   */
+  wipSaved?: boolean;
 }
 
 /** A comment rendered for the conversation: prose, plus a block when present. */

@@ -42,6 +42,14 @@ export type LogEvent =
   // reaches the external log service.
   | 'agent.run_failed_detail'
   | 'runner.cleanup_failed'
+  // An interrupted run's edits, kept for the conversation's next request
+  // (src/lib/jobs/wip.ts). `dropped` names why kept work was not used or not
+  // kept: the gate refused it, the branch moved under it, or it was spent.
+  | 'wip.saved'
+  | 'wip.restored'
+  | 'wip.dropped'
+  | 'wip.save_failed'
+  | 'wip.clear_failed'
   | 'lock.broken_stale'
   | 'lock.release_failed'
   | 'config.load_failed'

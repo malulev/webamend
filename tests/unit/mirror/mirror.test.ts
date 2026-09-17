@@ -223,6 +223,48 @@ describe('createMirror().checkout', () => {
 });
 
 /**
+ * A ref outside `refs/heads` does not come along with a clone, and the tree
+ * has no remote to ask for it. The mirror hands it over from the cache, so the
+ * tree still never learns the authenticated address.
+ */
+describe('createMirror().fetchRef', () => {
+  const REF = 'refs/webagent/wip/c-7';
+
+  it('brings a ref the mirror holds into the tree and names its commit', async () => {
+    const h = await harness();
+    const sha = (await h.remoteGit.revparse(['HEAD'])).trim();
+    await h.remoteGit.raw(['update-ref', REF, sha]);
+    await h.mirror.sync();
+    const tree = await h.mirror.checkout('conversation-7', 'main');
+
+    expect(await h.mirror.fetchRef(tree, REF)).toBe(sha);
+    await tree.dispose();
+  });
+
+  it('answers null for a ref the mirror does not hold', async () => {
+    const h = await harness();
+    await h.mirror.sync();
+    const tree = await h.mirror.checkout('conversation-7', 'main');
+
+    expect(await h.mirror.fetchRef(tree, REF)).toBeNull();
+    await tree.dispose();
+  });
+
+  it('leaves no remote and no trace of where the ref came from', async () => {
+    const h = await harness();
+    await h.remoteGit.raw(['update-ref', REF, (await h.remoteGit.revparse(['HEAD'])).trim()]);
+    await h.mirror.sync();
+    const tree = await h.mirror.checkout('conversation-7', 'main');
+
+    await h.mirror.fetchRef(tree, REF);
+
+    expect((await simpleGit(tree.dir).raw(['remote', '-v'])).trim()).toBe('');
+    expect(existsSync(path.join(tree.dir, '.git', 'FETCH_HEAD'))).toBe(false);
+    await tree.dispose();
+  });
+});
+
+/**
  * FR-030, the "update it before publishing" half: the site's tip is merged
  * into a change by the host, in a tree of its own, or reported as a conflict
  * when git itself cannot settle it.

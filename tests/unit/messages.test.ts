@@ -13,6 +13,7 @@ import {
   PUBLISH_REFUSALS,
   UNDO_REFUSALS,
   PUBLICATION_IN_PROGRESS,
+  WORK_KEPT_MESSAGE,
 } from '@/lib/jobs/messages';
 import { DEFAULT_ERROR_DETAIL } from '@/lib/jobs/run';
 import type { ErrorCode, PolicyViolation } from '@/types';
@@ -88,6 +89,7 @@ describe('every sentence a client can be shown', () => {
     // list is asserted against its sources rather than against a number that
     // would need editing every time the vocabulary grows.
     expect(sentences).toContain(INTERRUPTED_MESSAGE);
+    expect(sentences).toContain(WORK_KEPT_MESSAGE);
     expect(sentences).toContain(PUBLICATION_IN_PROGRESS);
     expect(sentences).toContain(BRINGING_UP_TO_DATE);
     for (const message of Object.values(CLIENT_MESSAGES)) expect(sentences).toContain(message);
@@ -97,7 +99,7 @@ describe('every sentence a client can be shown', () => {
 
     expect(sentences.length).toBe(
       Object.keys(CLIENT_MESSAGES).length +
-        3 +
+        4 +
         Object.keys(PUBLISH_REFUSALS).length +
         Object.keys(UNDO_REFUSALS).length +
         Object.keys(ATTACHMENT_REFUSALS).length,

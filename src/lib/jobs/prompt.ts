@@ -45,6 +45,12 @@ export interface PromptInput {
    */
   attachedPaths?: string[];
   /**
+   * Paths already edited in the working tree by an earlier request in this
+   * conversation that was interrupted before it finished (src/lib/jobs/wip.ts).
+   * Paths, so for the agent alone.
+   */
+  resumedPaths?: string[];
+  /**
    * Every rule the gate will judge the change by. Advisory (the gate is the
    * control), but an agent that knows the boundary stops at it instead of
    * spending eight minutes on a favicon the gate will refuse.
@@ -100,6 +106,7 @@ function composeRequest(input: PromptInput): string {
     input.request.trim(),
     policySection(input.policy),
     attachmentSection(input.attachedPaths),
+    resumeSection(input.resumedPaths),
     refusalSection(input.refusedPaths),
     buildFailureSection(input.buildFailureDetail),
   ];
@@ -209,6 +216,26 @@ function attachmentSection(attachedPaths: string[] | undefined): string | null {
       'working tree at the paths below; use them where the request implies (for ' +
       'example, an image to show on a page) and reference them by these paths. Do ' +
       'not move or rename them.',
+    ...paths.map((path) => `- ${path}`),
+  ].join('\n');
+}
+
+/**
+ * The kept edits are unreviewed and possibly half-written, and the request
+ * now in hand may not be the one they were made for. So the agent is told to
+ * judge them, not to trust them: they count toward the same limits, and
+ * whatever is still in the tree when it finishes is what gets published.
+ */
+function resumeSection(resumedPaths: string[] | undefined): string | null {
+  const paths = [...new Set(resumedPaths ?? [])].filter((path) => path.trim() !== '');
+  if (paths.length === 0) return null;
+
+  return [
+    'An earlier attempt in this conversation was interrupted before it finished. ' +
+      'Its edits are already in the working tree at the paths below, unfinished ' +
+      'and unreviewed. Read them first. Keep and complete what serves this request ' +
+      'rather than starting over, and undo whatever does not: they count toward ' +
+      'the limits above like any other edit.',
     ...paths.map((path) => `- ${path}`),
   ].join('\n');
 }

@@ -274,5 +274,13 @@ function buildMirror(
       trees.push(workingTree);
       return { kind: 'merged', tree: workingTree, sha: after };
     },
+
+    async fetchRef(tree, ref) {
+      const held = await simpleGit(cacheDir).raw(['for-each-ref', ref]);
+      if (held.trim().length === 0) return null;
+      const git = simpleGit(tree.dir);
+      await git.raw(['fetch', '--no-tags', cacheDir, ref]);
+      return (await git.revparse(['FETCH_HEAD'])).trim();
+    },
   };
 }

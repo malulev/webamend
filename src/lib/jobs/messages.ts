@@ -76,6 +76,15 @@ export const INTERRUPTED_MESSAGE =
   'That request was interrupted before it finished. Nothing was published.';
 
 /**
+ * Added to a failure's own sentence when the run was interrupted through no
+ * fault of the request and its edits were kept for the next one. It follows
+ * the code's sentence rather than replacing it: what went wrong is still the
+ * first thing a client needs, and this is the part that changes what they do.
+ */
+export const WORK_KEPT_MESSAGE =
+  'The work done so far was kept, so sending your request again will carry on from there.';
+
+/**
  * Why publishing or undoing was refused, in more detail than the code alone.
  *
  * These live here rather than beside the routes that answer them for one
@@ -171,6 +180,7 @@ export const ERROR_HELP: Record<ErrorCode, string> = {
 export const CLIENT_PROSE: readonly string[] = [
   ...Object.values(CLIENT_MESSAGES),
   INTERRUPTED_MESSAGE,
+  WORK_KEPT_MESSAGE,
   PUBLICATION_IN_PROGRESS,
   BRINGING_UP_TO_DATE,
   ...Object.values(PUBLISH_REFUSALS),

@@ -191,7 +191,7 @@ function genRequestRecord(rng: () => number): RequestRecord {
   }
   if (outcome === 'failed') {
     record.errorCode = pick(rng, ERROR_CODES);
-    record.errorDetail = pick(rng, ['build exited 1', 'timed out after 30 minutes', genProse(rng)]);
+    record.errorDetail = pick(rng, ['build exited 1', 'timed out after 30 minutes', genProse(rng)]);    if (pick(rng, [true, false])) record.wipSaved = true;
   }
 
   return record;

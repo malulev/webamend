@@ -15,13 +15,14 @@ import {
   type PlacedAttachment,
 } from '@/lib/jobs/attachments';
 import type { JobBus } from '@/lib/jobs/bus';
-import { CLIENT_MESSAGES, INTERRUPTED_MESSAGE } from '@/lib/jobs/messages';
+import { CLIENT_MESSAGES, INTERRUPTED_MESSAGE, WORK_KEPT_MESSAGE } from '@/lib/jobs/messages';
 import { resolveModel } from '@/lib/models';
 import { toClientProse } from '@/lib/jobs/client-prose';
 import { assemblePrompt } from '@/lib/jobs/prompt';
 import { waitForPreview } from '@/lib/jobs/preview';
 import { pushBranch } from '@/lib/jobs/push';
 import { createStageMachine } from '@/lib/jobs/state';
+import { clearWip, isResumable, restoreWip, saveWip, type WipDeps } from '@/lib/jobs/wip';
 import type { AcquireResult, LockHandle } from '@/lib/lock/lock';
 import { commitPermittedPaths, deriveChangeSet } from '@/lib/mirror/changeset';
 import type { Mirror, WorkingTree } from '@/lib/mirror/types';
@@ -227,6 +228,7 @@ async function execute(
       if (isProviderLimit(agent.failure.errorCode)) {
         await alertProviderLimit(deps, input, agent.failure.errorCode, agent.failure.errorDetail);
       }
+      const wipSaved = await keepInterruptedWork(deps, input, requestId, prepared, agent.failure);
       // The spend is carried into every ending, not just the successful one:
       // a request that failed cost exactly what it cost, and a record omitting
       // that under-reports the installation precisely where a developer is
@@ -237,6 +239,7 @@ async function execute(
         model,
         ...agent.cost,
         ...agent.failure,
+        ...(wipSaved ? { wipSaved } : {}),
       });
     }
 
@@ -260,6 +263,7 @@ async function execute(
       if (verdict.failure.errorCode === 'cost_ceiling') {
         await alertCostCeiling(deps, input, agent.cost.costUsd);
       }
+      await spendKeptWork(deps, input, requestId, prepared);
       machine.advance(verdict.failure.outcome === 'blocked' ? 'blocked' : 'failed');
       return finish(
         deps,
@@ -272,6 +276,9 @@ async function execute(
 
     machine.advance('pushing');
     const commit = await publishBranch(deps, input, tree, verdict.files, agent.summary);
+    // After the push, never before: until the branch holds the work, the kept
+    // copy is the only one there is.
+    await spendKeptWork(deps, input, requestId, prepared);
 
     machine.advance('building');
     const preview = await waitForPreview(
@@ -361,11 +368,20 @@ interface Prepared {
   prompt: AgentPrompt;
   /** Attachments as placed, so the gate can tell them apart from the agent's work. */
   placed: PlacedAttachment[];
+  /** Paths restored from an interrupted request's kept work. Empty when there was none. */
+  resumedPaths: string[];
 }
 
 async function prepare(deps: RunDeps, input: RunInput, requestId: string): Promise<Prepared> {
   await deps.mirror.sync();
   const tree = await deps.mirror.checkout(input.branch, input.baseBranch);
+  // First, on the tree as cloned: a restore that does not apply is undone by
+  // resetting the tree, which would take attachments with it.
+  const resumedPaths = await restoreWip(wipDeps(deps), {
+    tree,
+    conversationNumber: input.conversationNumber,
+    requestId,
+  });
 
   // The control directory sits outside the working tree by construction, so a
   // control file can never become part of a change to the client's site,
@@ -396,6 +412,7 @@ async function prepare(deps: RunDeps, input: RunInput, requestId: string): Promi
     ...(input.buildFailureDetail ? { buildFailureDetail: input.buildFailureDetail } : {}),
     ...(input.refusedPaths?.length ? { refusedPaths: input.refusedPaths } : {}),
     ...(attachedPaths.length ? { attachedPaths } : {}),
+    ...(resumedPaths.length ? { resumedPaths } : {}),
   });
   // Passing the working tree here is not redundant: it is what lets the control
   // writer refuse a control directory nested inside the tree, rather than
@@ -409,7 +426,56 @@ async function prepare(deps: RunDeps, input: RunInput, requestId: string): Promi
   await makeAgentWritable(tree.dir);
   await makeAgentWritable(controlDir);
 
-  return { tree, controlDir, prompt, placed };
+  return { tree, controlDir, prompt, placed, resumedPaths };
+}
+
+function wipDeps(deps: RunDeps): WipDeps {
+  return {
+    client: deps.client,
+    mirror: deps.mirror,
+    policy: deps.config.policy,
+    author: { name: 'Site Editor', email: deps.env.smtpFrom },
+  };
+}
+
+/**
+ * Keeps an interrupted run's edits for the conversation's next request, when
+ * the interruption was the kind worth resuming from (src/lib/jobs/wip.ts).
+ */
+async function keepInterruptedWork(
+  deps: RunDeps,
+  input: RunInput,
+  requestId: string,
+  prepared: Prepared,
+  failure: Failure,
+): Promise<boolean> {
+  if (!failure.errorCode || !isResumable(failure.errorCode)) return false;
+  return saveWip(wipDeps(deps), {
+    tree: prepared.tree,
+    conversationNumber: input.conversationNumber,
+    requestId,
+    errorCode: failure.errorCode,
+    placed: prepared.placed,
+  });
+}
+
+/**
+ * Kept work is spent once the gate has judged a tree that contained it:
+ * published, it is on the branch; refused, it would be refused again on every
+ * later request. Endings that never reached the gate leave it where it is.
+ */
+async function spendKeptWork(
+  deps: RunDeps,
+  input: RunInput,
+  requestId: string,
+  prepared: Prepared,
+): Promise<void> {
+  if (prepared.resumedPaths.length === 0) return;
+  await clearWip(wipDeps(deps), {
+    tree: prepared.tree,
+    conversationNumber: input.conversationNumber,
+    requestId,
+  });
 }
 
 interface Failure {
@@ -418,6 +484,8 @@ interface Failure {
   errorDetail?: string;
   violation?: RequestRecord['violation'];
   blockedPath?: string;
+  /** The run was interrupted and its edits were kept for the next request. */
+  wipSaved?: boolean;
   prose: string | null;
 }
 
@@ -731,6 +799,7 @@ async function finish(
     costUsd: record.costUsd,
     filesChanged: record.filesChanged,
     diffLines: record.diffLines,
+    wipSaved: record.wipSaved,
     commitSha: record.commitSha,
     hasPreview: Boolean(record.previewUrl),
     ...stageDurations(record),
@@ -818,6 +887,7 @@ function buildRecord(result: FinishInput, stages: StageEvent[], finishedAt: stri
     ['blockedPath', result.blockedPath],
     ['errorCode', result.errorCode],
     ['errorDetail', errorDetail],
+    ['wipSaved', result.wipSaved],
   ];
 
   for (const [key, value] of optional) {
@@ -835,7 +905,7 @@ function buildRecord(result: FinishInput, stages: StageEvent[], finishedAt: stri
  */
 function proseFor(result: FinishInput): string {
   const code: ErrorCode = result.errorCode ?? 'internal_error';
-  return CLIENT_MESSAGES[code];
+  return result.wipSaved ? `${CLIENT_MESSAGES[code]} ${WORK_KEPT_MESSAGE}` : CLIENT_MESSAGES[code];
 }
 
 // ---------------------------------------------------------------------------

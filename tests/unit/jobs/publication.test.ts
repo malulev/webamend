@@ -57,6 +57,9 @@ function fakeMirror(
       calls.push(`${branch}<-${baseBranch}`);
       return outcome;
     },
+    async fetchRef() {
+      throw new Error('publishing never restores kept work');
+    },
   };
   return mirror;
 }
