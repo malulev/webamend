@@ -187,6 +187,18 @@ loki.process "webamend" {
     values = { level = "level", event = "event" }
   }
 
+  // Continuous readiness is a metric already (webamend_client_ready_ok, via
+  // ops/probe.sh). The line that says the same thing every five minutes per
+  // client is the one steady source of volume in this stream, and nothing
+  // reads it. Dropped here, kept on disk: `docker logs` still shows it.
+  // Matched on the labels the stage above just set.
+  stage.match {
+    selector = "{job=\"webamend\", event=\"readiness.probed\"}"
+    action   = "drop"
+
+    drop_counter_reason = "readiness_is_a_metric"
+  }
+
   // `loki.source.file` attaches `filename` to every entry by itself, and the
   // value holds the container ID — so each `ops/release.sh` recreates the app
   // container, mints a new ID, and starts a brand new stream that never ends.
@@ -231,7 +243,7 @@ loki.write "grafana" {
 // buys per-client HTTP status, latency and 5xx rate for no application code;
 // until then nothing in this stack sees the reverse proxy's view of a request.
 loki.source.journal "host" {
-  forward_to = [loki.write.grafana.receiver]
+  forward_to = [loki.process.journal.receiver]
   // Namespaced deliberately: a bare job="systemd" collides with every other
   // host that ships a journal to the same stack, and the two sets are
   // indistinguishable once mixed.
@@ -242,6 +254,24 @@ loki.source.journal "host" {
 
 loki.relabel "journal" {
   forward_to = []
+
+  // Warning and above only. At info the journal is the probe becoming each
+  // client user every minute (PAM logs an open and a close per runuser, up
+  // to seven per client), sshd narrating the internet's password guesses,
+  // and systemd announcing every timer run — fifteen thousand lines a day
+  // that no error is ever traced through. What remains: kernel OOM kills,
+  // dockerd and Caddy faults, certificate failures, sshd errors. The box
+  // keeps all of it regardless; journald is capped at 500M, not filtered.
+  rule {
+    source_labels = ["__journal_priority"]
+    regex         = "[5-7]"
+    action        = "drop"
+  }
+  rule {
+    source_labels = ["__journal_priority_keyword"]
+    target_label  = "level"
+  }
+
   // Only the unit. Auto-promoting __journal__pid, _CMDLINE or _EXE is the
   // journald cardinality trap: one series per process ever started.
   rule {
@@ -251,5 +281,32 @@ loki.relabel "journal" {
   rule {
     source_labels = ["__journal__systemd_user_unit"]
     target_label  = "user_unit"
+  }
+
+  // These two are labels only until loki.process.journal packs them into the
+  // line and removes them from the label set. Promoted here because a pack
+  // stage can reach labels and cannot reach journal fields.
+  rule {
+    source_labels = ["__journal_syslog_identifier"]
+    target_label  = "identifier"
+  }
+  rule {
+    source_labels = ["__journal__pid"]
+    target_label  = "pid"
+  }
+}
+
+// The journal line becomes JSON like the application's, so one `| json`
+// reads either stream and `| unpack` restores the plain message. Not
+// `format_as_json` on the source: that serialises every journal field, and
+// _CMDLINE is the full command line of the logging process — on this host
+// that can be a `docker run -e OPENROUTER_API_KEY=…` from the debugging
+// runbook. Packing names the fields, so nothing else leaves.
+loki.process "journal" {
+  forward_to = [loki.write.grafana.receiver]
+
+  stage.pack {
+    labels           = ["identifier", "pid"]
+    ingest_timestamp = false
   }
 }

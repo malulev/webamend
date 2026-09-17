@@ -71,8 +71,8 @@ each client — that is the only check that sees DNS, Caddy and the certificate.
 |---|---|
 | `ops/status.sh --prom` → textfile | per-client app/daemon/health/readiness, agents running vs limit, **summed ceiling across clients**, image and commit, maintenance flag |
 | `prometheus.exporter.unix` | CPU, memory, load, disk, filesystem, per-unit systemd state |
-| container logs → Loki | every `request.ended`: outcome, errorCode, duration and per-stage durations, cost, tokens, files changed |
-| journald → Loki | dockerd, sshd, each client's rootless daemon, and Caddy's *service* log. **Not** Caddy access logs: v2 writes those only where a site block carries a `log` directive, and the Caddyfile has none — so per-client HTTP status and latency are not collected today |
+| container logs → Loki | every `request.ended`: outcome, errorCode, duration and per-stage durations, cost, tokens, files changed — and every warn and error line. `readiness.probed` stays on the box; its fact is the metric |
+| journald → Loki | **warning and above only**, as JSON (`| json` for `_entry`, `identifier`, `pid`; `| unpack` for the plain message), labelled `unit` and `level`: kernel OOM kills, dockerd, sshd and Caddy faults, certificate failures. Info lines — the probe's `runuser` sessions, password guesses against sshd, timer runs — never leave the box; `journalctl` has them. **Not** Caddy access logs: v2 writes those only where a site block carries a `log` directive, and the Caddyfile has none — so per-client HTTP status and latency are not collected today |
 | heartbeat service | the one signal that survives the box being gone |
 
 ## Where to look
@@ -88,8 +88,10 @@ queries. The short version:
 - **Per request:** the durable record is a comment on the pull request in the
   client's repository — outcome, cost, tokens, per-stage timestamps, and the
   agent's last output lines, which exist nowhere else by design.
-- **In Grafana:** Explore → Loki for `{job="webamend"}`, Explore → Prometheus for
-  `webamend_*` and `node_*`, Alerting → Alert rules for what is firing.
+- **In Grafana:** Explore → Loki for `{job="webamend"}` (the applications) and
+  `{job="webamend-host"} | unpack` (the host, warnings and up), Explore →
+  Prometheus for `webamend_*` and `node_*`, Alerting → Alert rules for what is
+  firing.
 - **Dashboards:** `monitoring/grafana/dashboard-health.json` (is it up, per
   client, right now) and `monitoring/grafana/dashboard-requests.json` (did the
   requests work, why were they slow, what did they cost). Push them from the
