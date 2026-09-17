@@ -95,6 +95,37 @@ assert_contains "corrupt file is named with a line number" "beta: .env line 3" "
 assert_eq "corrupt file restored" "$before_beta" "$(cat "$ROOT/beta/.env")"
 assert_eq "healthy client still updated" "hello@webamend.com" "$(value_of acme SMTP_FROM)"
 
+# --- every shape Compose accepts passes validation ---------------------------------
+fresh_clients
+{
+  printf "GITHUB_APP_PRIVATE_KEY='-----BEGIN RSA PRIVATE KEY-----\n"
+  printf 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC\n'
+  printf -- "-----END RSA PRIVATE KEY-----'\n"
+  printf 'OTHER_KEY="-----BEGIN X-----\nabc\n-----END X-----"\n'
+  printf 'export EXPORTED=1\n'
+  printf 'lower_case_name=allowed by compose\n'
+  printf '  # indented comment\n'
+  printf 'QUOTED_ONE_LINE="a b c"\n'
+  printf "EMPTY_QUOTE=''\n"
+} >>"$ROOT/acme/.env"
+run SMTP_FROM hello@webamend.com --client acme
+assert_eq "single-quoted PEM, export, lowercase all accepted" 0 "$STATUS"
+assert_eq "PEM file still updated" "hello@webamend.com" "$(value_of acme SMTP_FROM)"
+assert_eq "PEM closing line intact" "-----END RSA PRIVATE KEY-----'" "$(grep -F -- "END RSA" "$ROOT/acme/.env")"
+
+# --- --check reports without touching anything ------------------------------------
+fresh_clients
+printf '=\n' >>"$ROOT/beta/.env"
+before_acme="$(cat "$ROOT/acme/.env")"; before_beta="$(cat "$ROOT/beta/.env")"
+run --check
+assert_eq "--check exit 1 with a bad file" 1 "$STATUS"
+assert_contains "--check names the good client ok" "acme             ok" "$OUT"
+assert_contains "--check names the bad line" "beta             REJECTED: .env line 3" "$OUT"
+assert_eq "--check wrote nothing (acme)" "$before_acme" "$(cat "$ROOT/acme/.env")"
+assert_eq "--check wrote nothing (beta)" "$before_beta" "$(cat "$ROOT/beta/.env")"
+run --check --client acme
+assert_eq "--check exit 0 when clean" 0 "$STATUS"
+
 # --- --dry-run changes nothing -----------------------------------------------------
 fresh_clients
 run SMTP_FROM hello@webamend.com --dry-run

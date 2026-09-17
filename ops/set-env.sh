@@ -23,16 +23,19 @@ usage() {
 Usage: ops/set-env.sh NAME VALUE   [--client <slug>] [--no-recreate] [--dry-run]
        ops/set-env.sh --secret NAME [--client <slug>] [--no-recreate] [--dry-run]
        ops/set-env.sh --unset NAME  [--client <slug>] [--no-recreate] [--dry-run]
+       ops/set-env.sh --check       [--client <slug>]
 
 Sets NAME=VALUE in each client's /srv/webamend/<slug>/.env (replacing an
-existing line or appending one), validates the file, and recreates the app
-container. Run as root.
+existing line or appending one), validates the file with `docker compose
+config`, and recreates the app container. Run as root.
 
 Forms:
   NAME VALUE        Plain value on the command line. Fine for addresses and
                     ids; not for secrets (the value lands in shell history).
   --secret NAME     Prompts for the value with echo off.
   --unset NAME      Removes the line.
+  --check           Only reports whether each .env would be accepted at
+                    recreate. Reads nothing else, changes nothing.
 
 Options:
   --client <slug>   Only this client. Default: every client with an .env.
@@ -86,6 +89,7 @@ parse_args() {
         MODE="unset"
         shift 2
         ;;
+      --check) MODE="check"; shift ;;
       --client)
         [ $# -ge 2 ] || die "--client needs a slug"
         ONLY_CLIENT="$2"
@@ -105,10 +109,30 @@ parse_args() {
       NAME="${positional[0]}"
       VALUE="${positional[1]}"
       ;;
-    secret | unset)
+    secret | unset | check)
       [ ${#positional[@]} -eq 0 ] || die "unexpected argument '${positional[0]}'"
       ;;
   esac
+}
+
+# --check: report whether each client's .env would be accepted at recreate.
+# Reads only. Exit 1 when any file is rejected.
+check_clients() {
+  local slugs slug dir env_file reason
+  slugs="$(client_slugs)"
+  [ -n "$slugs" ] || die "no clients under ${CLIENT_ROOT}"
+  for slug in $slugs; do
+    dir="${CLIENT_ROOT}/${slug}"; env_file="${dir}/.env"
+    reason="$(env_file_problem "$slug" "$dir" "$env_file")"
+    if [ -z "$reason" ]; then
+      record "$slug" "ok"
+    else
+      record "$slug" "REJECTED: ${reason}"
+      FAILED=1
+    fi
+  done
+  print_summary
+  [ "$FAILED" -eq 0 ] || exit 1
 }
 
 validate_name() {
@@ -164,19 +188,49 @@ own_like_client() {
 }
 
 # Prints the number of the first line that is neither blank, a comment, a
-# NAME=value line, nor the continuation of a double-quoted multi-line value
-# (the shape a PEM arrives in). Prints nothing when the file is clean.
+# NAME=value line (optionally `export`-prefixed, any case Compose accepts),
+# nor the continuation of a quoted multi-line value in either quote style
+# (the shapes a PEM arrives in). Prints nothing when the file is clean.
+# This is a fallback approximation of Compose's grammar; when Compose itself
+# is reachable, compose_accepts() is the verdict and this only names a line.
 first_bad_line() {
   awk '
-    open { if ($0 ~ /"$/) open = 0; next }
-    /^[[:space:]]*$/ || /^#/ { next }
-    /^[A-Z][A-Z0-9_]*=/ {
+    open != "" { if (substr($0, length($0), 1) == open) open = ""; next }
+    /^[[:space:]]*$/ || /^[[:space:]]*#/ { next }
+    /^(export[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/ {
       rest = substr($0, index($0, "=") + 1)
-      if (rest ~ /^"/ && rest !~ /^".*"$/) open = 1
+      q = substr(rest, 1, 1)
+      if ((q == "\"" || q == "\047") && !(length(rest) >= 2 && substr(rest, length(rest), 1) == q)) open = q
       next
     }
     { print NR; exit }
   ' "$1"
+}
+
+# The authoritative check: the parser that will read the file at recreate.
+# `docker compose config` loads env_file and interpolates .env without
+# creating or touching a container. Only possible as root (it runs as the
+# client against its own daemon); unprivileged runs fall back to the grammar.
+compose_available() {
+  [ "$(id -u)" -eq 0 ] && command -v docker >/dev/null 2>&1 && [ -f "$1/docker-compose.yml" ]
+}
+compose_accepts() {
+  local slug="$1" dir="$2"
+  run_as_client "$slug" docker compose -f "${dir}/docker-compose.yml" --project-directory "$dir" config -q >/dev/null 2>&1
+}
+
+# Empty when the file is acceptable; otherwise a short reason, values never
+# included (Compose's own message would echo the offending line).
+env_file_problem() {
+  local slug="$1" dir="$2" env_file="$3" bad
+  if compose_available "$dir"; then
+    compose_accepts "$slug" "$dir" && return 0
+    bad="$(first_bad_line "$env_file")"
+    if [ -n "$bad" ]; then echo "docker compose rejects .env (line ${bad})"; else echo "docker compose rejects .env"; fi
+    return 0
+  fi
+  bad="$(first_bad_line "$env_file")"
+  [ -z "$bad" ] || echo ".env line ${bad} is not NAME=value"
 }
 
 # What the edit would do to this file: replace | add | remove | absent.
@@ -272,10 +326,10 @@ apply_to_client() {
   own_like_client "$tmp" "$slug"
   mv -- "$tmp" "$env_file"
 
-  bad="$(first_bad_line "$env_file")"
-  if [ -n "$bad" ]; then
+  reason="$(env_file_problem "$slug" "$dir" "$env_file")"
+  if [ -n "$reason" ]; then
     mv -- "$backup" "$env_file"
-    reason=".env line ${bad} is not NAME=value; restored, not restarted"
+    reason="${reason}; restored, not restarted"
     echo "  ${slug}: ${reason}" >&2
     record "$slug" "FAILED: ${reason}"
     FAILED=1
@@ -322,6 +376,10 @@ print_summary() {
 
 main() {
   parse_args "$@"
+  if [ "$MODE" = "check" ]; then
+    check_clients
+    return 0
+  fi
   validate_name
   read_value
   if [ "$RECREATE" -eq 1 ] && [ "$DRY_RUN" -eq 0 ]; then
