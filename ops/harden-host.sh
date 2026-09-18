@@ -349,6 +349,10 @@ kernel.perf_event_paranoid = 3
 kernel.unprivileged_bpf_disabled = 1
 net.core.bpf_jit_harden = 2
 fs.suid_dumpable = 0
+# A core is the process's memory, and the app's memory holds every token in
+# its .env. The helper runs in the host's namespaces whichever container
+# crashed, so this one line covers them all.
+kernel.core_pattern = |/bin/false
 fs.protected_hardlinks = 1
 fs.protected_symlinks = 1
 fs.protected_fifos = 2
@@ -369,6 +373,11 @@ net.ipv6.conf.default.accept_redirects = 0
 net.ipv6.conf.all.accept_source_route = 0
 net.ipv6.conf.default.accept_source_route = 0
 EOF
+  # Before the load, not after: Ubuntu's apport writes its own core_pattern
+  # when it starts and resets it to `core` when it stops, so stopping it later
+  # would undo the line above, and leaving it enabled would undo it each boot.
+  run systemctl disable --now apport.service 2>/dev/null ||
+    note "apport is not installed; nothing to stop"
   # -e: a key this kernel does not have is skipped, not fatal.
   run sysctl -e -q -p "${HARDEN_ROOT}${SYSCTL_FILE}"
 }

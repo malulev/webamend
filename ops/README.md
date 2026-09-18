@@ -66,7 +66,9 @@ ops/harden-host.sh --audit             # Lynis; publishes webamend_host_hardenin
 - **Firewall**: ufw denies incoming except sshd's configured port, 80 and 443. Client ports
   need no rule: they are loopback-only.
 - **sysctl**: dev-sec.io's `os_hardening` baseline, minus the four settings that break
-  Docker, rootless mode, provider IPv6, or the journal budget. The file says which.
+  Docker, rootless mode, provider IPv6, or the journal budget. The file says which. Core
+  dumps are piped to `/bin/false`, for containers too, and `apport` is disabled so it cannot
+  put its own handler back; a crash is debugged from logs, not from a memory image.
 - **`--audit`** changes nothing. The index lands in the collector's textfile directory; the
   suggestions it prints are the next things worth doing.
 

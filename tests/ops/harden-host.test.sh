@@ -77,6 +77,14 @@ sysctl_conf="$(grep -v '^#' "$SYSCTL_FILE")"
 assert_contains "sysctl hardens kernel pointers" "kernel.kptr_restrict = 2" "$sysctl_conf"
 assert_not_contains "sysctl leaves forwarding alone (Docker needs it)" "ip_forward" "$sysctl_conf"
 assert_not_contains "sysctl leaves user namespaces alone (rootless needs them)" "user_namespaces" "$sysctl_conf"
+assert_contains "core dumps go nowhere" "kernel.core_pattern = |/bin/false" "$sysctl_conf"
+apport_off="$(line_of 'would run: systemctl disable --now apport.service')"
+sysctl_load="$(line_of 'would run: sysctl -e')"
+if [ "${apport_off:-0}" -gt 0 ] && [ "$apport_off" -lt "${sysctl_load:-0}" ]; then
+  pass "apport is stopped before the pattern is set"
+else
+  fail "apport is stopped before the pattern is set: apport at '${apport_off}', sysctl at '${sysctl_load}'"
+fi
 assert_contains "periodic upgrades on" 'Unattended-Upgrade "1"' "$(cat "$PERIODIC_FILE")"
 assert_contains "reboot window defaults to 04:00" 'Automatic-Reboot-Time "04:00"' "$(cat "$REBOOT_FILE")"
 assert_contains "firewall opens https" "would run: ufw allow 443/tcp" "$OUT"
