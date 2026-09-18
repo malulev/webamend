@@ -50,7 +50,7 @@ The containers are narrow already; `ops/harden-host.sh` narrows the box they sha
 `bootstrap-host.sh` runs it last (`--no-harden` opts out), and it is safe to run again.
 
 ```bash
-ops/harden-host.sh --no-apply          # write nothing live: show the files and the commands
+ops/harden-host.sh --no-apply          # change nothing: print the files and the commands
 ops/harden-host.sh                     # sshd keys-only, security upgrades, ufw, sysctl
 ops/harden-host.sh --ssh-users "amit"  # also restrict SSH to named accounts
 ops/harden-host.sh --audit             # Lynis; publishes webamend_host_hardening_index

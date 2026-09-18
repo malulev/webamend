@@ -40,9 +40,10 @@ Options:
   --no-auto-reboot        Install upgrades but never reboot for them.
   --no-ssh                Leave sshd alone.
   --no-firewall           Leave ufw alone.
-  --no-apply              Write the files, print the commands that would
-                          activate them, run none. Needs no root. With
-                          HARDEN_ROOT=<dir> the files land under <dir>.
+  --no-apply              Change nothing: print each file it would write and
+                          each command it would run. Needs no root. With
+                          HARDEN_ROOT=<dir> the files are written under <dir>
+                          instead, which is how the tests read them.
   --audit                 Run Lynis, publish webamend_host_hardening_index for
                           the collector, print the top suggestions. Hardens
                           nothing.
@@ -140,6 +141,13 @@ run() {
 # one.
 write_file() {
   local shown="$1" mode="$2" path="${HARDEN_ROOT}$1" tmp
+  # Looking first must leave the host as it was. A drop-in written "only to
+  # look at" is still read by sshd on its next restart, unvalidated.
+  if [ "$APPLY" -eq 0 ] && [ -z "$HARDEN_ROOT" ]; then
+    note "would write ${shown}:"
+    sed 's/^/    /'
+    return 0
+  fi
   mkdir -p "$(dirname -- "$path")"
   tmp="$(mktemp "${path}.XXXXXX")"
   cat >"$tmp"
@@ -321,7 +329,7 @@ enable_firewall() {
   # HTTP/3, which Caddy serves by default.
   run ufw allow 443/udp
   run ufw --force enable
-  note "firewall: incoming denied except ssh ($(ssh_ports | tr '\n' ' ')), 80 and 443"
+  note "firewall: incoming denied except ssh ($(ssh_ports | paste -sd' ' -)), 80 and 443"
 }
 
 # From dev-sec.io's os_hardening defaults, minus what this host cannot take:

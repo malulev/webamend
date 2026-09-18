@@ -175,6 +175,16 @@ assert_missing "and publishes nothing" "$PROM_FILE"
 run --bogus
 assert_eq "unknown option refused" 1 "$STATUS"
 if [ "$(id -u)" -ne 0 ]; then
+  # Looking first, on a real host, must leave the host as it was.
+  set +e
+  OUT="$(bash "$SCRIPT" --no-apply --no-ssh 2>&1)"
+  STATUS=$?
+  set -e
+  assert_eq "--no-apply on the real root exit 0" 0 "$STATUS"
+  assert_contains "it names the file it would write" "would write /etc/sysctl.d/60-webamend-hardening.conf" "$OUT"
+  assert_contains "and shows its content" "kernel.kptr_restrict = 2" "$OUT"
+  assert_not_contains "and writes none" "harden-host: wrote" "$OUT"
+
   set +e
   OUT="$(bash "$SCRIPT" 2>&1)"
   STATUS=$?
