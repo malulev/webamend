@@ -158,13 +158,20 @@ assert_not_contains "--no-firewall never touches ufw" "ufw" "$OUT"
 # --- --audit reads the report and changes nothing else -------------------------------
 fresh_host
 mkdir -p "$ROOT/var/log"
-printf 'report_version_major=1\nhardening_index=67\nsuggestion[]=SSH-7408|Consider hardening SSH configuration|-|-|\n' \
+printf 'report_version_major=1\nhardening_index=67\nsuggestion[]=SSH-7408|Consider hardening SSH configuration|-|-|\nwarning[]=PKGS-7392|Found one or more vulnerable packages.|-|-|\n' \
   >"$ROOT/var/log/lynis-report.dat"
 run --audit
 assert_eq "--audit exit 0" 0 "$STATUS"
 assert_contains "index published" "webamend_host_hardening_index 67" "$(cat "$PROM_FILE")"
 assert_contains "audit time published" "webamend_host_hardening_audit_timestamp_seconds" "$(cat "$PROM_FILE")"
 assert_contains "suggestions shown" "SSH-7408" "$OUT"
+warning_line="$(line_of PKGS-7392)"
+suggestion_line="$(line_of SSH-7408)"
+if [ "${warning_line:-0}" -gt 0 ] && [ "$warning_line" -lt "${suggestion_line:-0}" ]; then
+  pass "warnings are shown, and before suggestions"
+else
+  fail "warnings are shown, and before suggestions: warning at '${warning_line}', suggestion at '${suggestion_line}'"
+fi
 assert_missing "--audit hardens nothing" "$SSH_DROPIN"
 rm "$ROOT/var/log/lynis-report.dat" "$PROM_FILE"
 run --audit

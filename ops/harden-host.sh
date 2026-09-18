@@ -379,6 +379,13 @@ modified_at() {
   stat -c %Y "$1" 2>/dev/null || stat -f %m "$1"
 }
 
+# Lines look like `warning[]=TEST-ID|text|details|solution|`.
+report_lines() {
+  local lines
+  lines="$(grep -E "^$1\\[\\]=" "$2" | cut -d= -f2- | cut -d'|' -f1-2 | sed 's/|/  /; s/^/  /' || true)"
+  echo "${lines:-  none}"
+}
+
 # The timestamp is the report's, not now's: if Lynis failed and an old report
 # is still lying there, the metric says how old the number is instead of
 # presenting it as fresh.
@@ -399,8 +406,13 @@ webamend_host_hardening_index ${index}
 # TYPE webamend_host_hardening_audit_timestamp_seconds gauge
 webamend_host_hardening_audit_timestamp_seconds $(modified_at "$report")
 EOF
-  note "hardening index: ${index}/100. Top suggestions (full list: ${LYNIS_REPORT}):"
-  grep -E '^suggestion\[\]=' "$report" | head -n 15 | cut -d= -f2- | cut -d'|' -f1-2 | sed 's/|/  /; s/^/  /' || true
+  note "hardening index: ${index}/100 (full report: ${LYNIS_REPORT})"
+  # Warnings first and uncapped: they are Lynis's "fix this", and a list of
+  # fifteen suggestions above them would push them off the screen.
+  note "warnings:"
+  report_lines warning "$report"
+  note "suggestions, first 15:"
+  report_lines suggestion "$report" | head -n 15
 }
 
 main() {
