@@ -24,7 +24,7 @@
     "dev:session": "tsx scripts/dev-session.ts",
     "enroll:link": "tsx scripts/enroll-link.ts",
     "test:slotd": "python3 -m unittest discover -s ops/slotd -p 'test_*.py'",
-    "test:ops": "bash tests/ops/set-env.test.sh",
+    "test:ops": "bash tests/ops/set-env.test.sh && bash tests/ops/harden-host.test.sh",
     "stress:slotd": "python3 ops/slotd/stress.py"
   },
   "dependencies": {

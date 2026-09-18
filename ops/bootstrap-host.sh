@@ -35,6 +35,8 @@ Options:
   --swap-size <size>      Swapfile size, in fallocate's units (default 2G).
   --no-swap               Do not create a swapfile.
   --no-monitoring         Do not install the metrics timers and log caps.
+  --no-harden             Do not run ops/harden-host.sh (sshd, upgrades,
+                          firewall, sysctl).
   -h, --help              Show this message.
 
 After this, create a client with:
@@ -48,6 +50,7 @@ REGISTRY_PORT=5000
 SWAP_SIZE=2G
 WITH_SWAP=1
 WITH_MONITORING=1
+WITH_HARDEN=1
 REGISTRY_NAME=webamend-registry
 REGISTRY_VOLUME=webamend-registry-data
 CLIENT_ROOT=/srv/webamend
@@ -86,6 +89,10 @@ parse_args() {
         ;;
       --no-monitoring)
         WITH_MONITORING=0
+        shift
+        ;;
+      --no-harden)
+        WITH_HARDEN=0
         shift
         ;;
       -h | --help)
@@ -292,6 +299,22 @@ install_slotd() {
   note "webamend-slotd listening on /run/webamend/slotd.sock; capacity: python3 ${SCRIPT_DIR}/slotd/webamend_slotd.py status"
 }
 
+# Last, and not fatal: by now the host can serve clients, and the one thing
+# harden-host.sh refuses over — no SSH key on any account — is fixed by a
+# person, not by failing the whole bootstrap after the fact.
+harden_host() {
+  if [ "$WITH_HARDEN" -eq 0 ]; then
+    note "skipping host hardening (--no-harden)"
+    return 0
+  fi
+  [ -x "${SCRIPT_DIR}/harden-host.sh" ] || {
+    note "harden-host.sh not found; skipping. Run it by hand later."
+    return 0
+  }
+  "${SCRIPT_DIR}/harden-host.sh" ||
+    note "host hardening did NOT complete; read the message above, then run ops/harden-host.sh yourself"
+}
+
 main() {
   parse_args "$@"
   require_root
@@ -304,6 +327,7 @@ main() {
   ensure_swap
   install_monitoring
   install_slotd
+  harden_host
 
   cat <<EOF
 

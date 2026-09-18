@@ -44,6 +44,32 @@ ops/status.sh --json                   # the same facts, for a script
 ops/status.sh --quiet                  # exit status only, for a timer
 ```
 
+## Hardening
+
+The containers are narrow already; `ops/harden-host.sh` narrows the box they share.
+`bootstrap-host.sh` runs it last (`--no-harden` opts out), and it is safe to run again.
+
+```bash
+ops/harden-host.sh --no-apply          # write nothing live: show the files and the commands
+ops/harden-host.sh                     # sshd keys-only, security upgrades, ufw, sysctl
+ops/harden-host.sh --ssh-users "amit"  # also restrict SSH to named accounts
+ops/harden-host.sh --audit             # Lynis; publishes webamend_host_hardening_index
+```
+
+- **sshd**: password sign-in off, in a drop-in named `00-…` because sshd keeps the first
+  value it reads and cloud images ship a `50-cloud-init.conf` that says yes. Root sign-in is
+  turned off only when an account in the `sudo` group has an `authorized_keys` file;
+  otherwise root keeps key sign-in and the script says so. No key on any account: it refuses.
+- **Upgrades**: `unattended-upgrades` daily, and a reboot at 04:00 host time when a kernel
+  needs one (`--reboot-time`, `--no-auto-reboot`). A reboot interrupts a running request,
+  which the app rebuilds from its pull request. Docker's own packages are not auto-upgraded.
+- **Firewall**: ufw denies incoming except sshd's configured port, 80 and 443. Client ports
+  need no rule: they are loopback-only.
+- **sysctl**: dev-sec.io's `os_hardening` baseline, minus the four settings that break
+  Docker, rootless mode, provider IPv6, or the journal budget. The file says which.
+- **`--audit`** changes nothing. The index lands in the collector's textfile directory; the
+  suggestions it prints are the next things worth doing.
+
 ## The scripts
 
 | Script                                         | Run as | When                                                                                                                                                                                                                                        |
@@ -55,6 +81,7 @@ ops/status.sh --quiet                  # exit status only, for a timer
 | `set-env.sh NAME VALUE`                        | root   | When one setting changes for every client (`SMTP_FROM`, say). Edits each `.env`, validates it, and recreates the app one client at a time; a file that fails validation is restored and its container left alone. `--secret NAME` prompts with echo off, `--unset NAME` removes, `--client <slug>` for one, `--dry-run` to look first, `--no-recreate` to defer, `--check` to ask Compose whether every `.env` parses. |
 | `launch-client.sh <slug> <hostname> [port]`    | root   | The four steps above for one new client, in order, with the hand steps between them: opens `.env` in an editor, mints the secrets, runs `check:env`, waits for DNS, adds the Caddy block, checks HTTPS. Re-run after a failure; it resumes. |
 
+| `harden-host.sh`                               | root   | Once per host, and after adding an administrator. sshd, upgrades, firewall, sysctl. `--audit` measures. See Hardening above.                                                                                                              |
 | `migrate-to-webamend.sh`                       | root   | Once, on a host provisioned before the product was renamed. Moves `/opt/prosel` and `/srv/lexi`, renames the `lexi-slots` group in place, reinstalls the daemon unit, the probe timers, the log wrapper and, where it is installed, Alloy's config and unit drop-in, and rewrites each client's `.env`. `--release` finishes by rolling every client onto the new image name. |
 
 All four are idempotent. All four refuse rather than guess.
@@ -119,7 +146,7 @@ edit.acme.example {
 }
 CADDY
 systemctl reload caddy
-ufw allow 22,80,443/tcp && ufw --force enable
+# The firewall already admits 80 and 443: bootstrap-host.sh ran harden-host.sh.
 
 ops/status.sh
 ```
