@@ -186,6 +186,31 @@ run --audit
 assert_eq "--audit without a report fails" 1 "$STATUS"
 assert_missing "and publishes nothing" "$PROM_FILE"
 
+# --- the sshd check reads what sshd said, not how sshd died ---------------------------
+# A stand-in for `sshd -T` on Linux: the answer arrives in the first write, and
+# a later write finds the reader gone. Seen on the first production run, where
+# a hardened sshd was reported as still allowing passwords, 100 times in 100.
+effective_check() { # the value the stand-in reports
+  (
+    REPORTED="$1"
+    # shellcheck disable=SC1090
+    source "$SCRIPT"
+    APPLY=1
+    sshd() {
+      printf 'port 22\npasswordauthentication %s\n' "$REPORTED"
+      sleep 0.2
+      head -c 8192 /dev/zero | tr '\0' 'x'
+    }
+    verify_ssh_effective
+  ) >/dev/null 2>&1
+}
+set +e
+effective_check no; hardened=$?
+effective_check yes; still_open=$?
+set -e
+assert_eq "a hardened sshd passes the check" 0 "$hardened"
+assert_eq "an sshd that still takes passwords fails it" 1 "$still_open"
+
 # --- refusals ------------------------------------------------------------------------
 run --bogus
 assert_eq "unknown option refused" 1 "$STATUS"

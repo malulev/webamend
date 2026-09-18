@@ -209,7 +209,7 @@ plan_ssh() {
     for user in $SSH_USERS; do
       [ -n "$(home_of "$user")" ] || die "--ssh-users: no account named '${user}'"
       has_keys "$user" || die "--ssh-users: '${user}' has no authorized_keys file and could never sign in"
-      if echo "$admins" | grep -qx "$user"; then allowed_admin="$user"; fi
+      if grep -qx "$user" <<<"$admins"; then allowed_admin="$user"; fi
     done
     # AllowUsers shuts root out as well, so one of the listed accounts has to
     # be able to reach root by sudo.
@@ -256,8 +256,14 @@ EOF
 # still win over the drop-in; ask sshd what it actually resolved.
 verify_ssh_effective() {
   [ "$APPLY" -eq 1 ] || return 0
-  sshd -T 2>/dev/null | grep -qx 'passwordauthentication no' ||
-    die "sshd still allows password sign-in after the drop-in. Something in /etc/ssh/sshd_config sets it before the Include line; remove that and re-run."
+  local effective
+  # Captured whole, then searched. Piped straight into `grep -q`, grep leaves
+  # at the first match, sshd dies of SIGPIPE writing the rest of a dump larger
+  # than one stdio buffer, and pipefail reports a hardened sshd as an open one.
+  effective="$(sshd -T 2>/dev/null)" ||
+    die "sshd -T failed, so the effective configuration could not be read. Run it by hand: sshd -T"
+  grep -qx 'passwordauthentication no' <<<"$effective" ||
+    die "sshd still allows password sign-in after the drop-in. Something sets it first: a line above Include in /etc/ssh/sshd_config, or a Match block. Remove that and re-run."
 }
 
 harden_ssh() {
@@ -439,4 +445,7 @@ main() {
   note "done. Measure it: ops/harden-host.sh --audit"
 }
 
-main "$@"
+# Sourced by the tests, which call one function at a time.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+  main "$@"
+fi
